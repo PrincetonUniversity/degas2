@@ -3,6 +3,9 @@
 % $Id$
 
 % $Log$
+% Revision 1.14.4.1  2000/01/22 00:38:03  kanzlr
+% Addition of background pressure term necessary for BGK simulations.
+%
 % Revision 1.14  1999/07/19 19:28:50  karney
 % (1) Remove much dead code in random.web.
 %
@@ -98,7 +101,6 @@ these arrays.
 
 @m bk_n(x,i) background_n[x,zn_pointer(i)]
 @m bk_temp(x,i) background_temp[x,zn_pointer(i)]
-@m bk_pres(x,i) background_pres[x,zn_pointer(i)]
 @m bk_v(x,i) background_v[x,zn_pointer(i)]
 
 @m plasma_coords_cartesian 1    // |v| holds the $x$, $y$, and $z$ components.
@@ -144,7 +146,6 @@ these arrays.
       define_varp_pk(bk,background_n,FLOAT,background_ind,bk_plasma_ind)
       define_varp_pk(bk,background_v,FLOAT,vector,background_ind,bk_plasma_ind)
       define_varp_pk(bk,background_temp,FLOAT,background_ind,bk_plasma_ind)
-      define_varp_pk(bk,background_pres,FLOAT,background_ind,bk_plasma_ind) 
       package_end(bk)
 
 @* Background class attribute descriptions.
@@ -160,8 +161,6 @@ integer variable.
   \item[|bk_v(background,i)|] Is the vector velocity in the $i$th zone.
 
   \item[|bk_temp(background,i)|] Is the temperature in the $i$th zone.
-
-  \item[|bk_pres(background,i)|] Is the pressure in the $i$th zone.
 
   \item[|background_coords|] Specifies the coordinate system used to 
 represent |bk_v|, either |plasma_coords_cartesian| or 
