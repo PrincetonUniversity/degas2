@@ -2,6 +2,14 @@
 \Title{problemsetup}
 
 % $Log$
+% Revision 1.31  1999/04/20 20:11:54  dstotler
+% Copied over most of Randy's changes to 1) fix order of array arguments
+% for equivalents, 2) force ordering of reaction reagents. Add code for
+% species-specific reactions. Replaced setting of products in
+% subr. elastic from rc_product with "reagents" => automatically get
+% isotopes correct. Add new dependent variables for direction-dependent
+% scores of PMI.
+%
 % Revision 1.30  1999/03/25 20:52:16  dstotler
 % Added check(s) on filenames_array.
 %
@@ -114,16 +122,87 @@
 %
 
 
-@* Introduction.
+@* Set up file containing data specific to the current problem.
 
 \ID{$Id$}
 
-The routines in this file extract from the reference physics classes
-(species, reaction classes, etc.) those objects required to deal with
-the species and processes spelled out in the |problem_infile|. All of the
-data are read in from the netCDF files; those which are needed are
-collated accordingly and written to the single output netCDF file
-|problemfile|.
+There are two levels of physics input to DEGAS 2.
+The input files set up by |datasetup| comprise the reference level: in
+practice, the sum total of the data available to the code (although
+in principle it could be smaller). The second level is the problem level
+of data. This prescribes the species, reactions, materials, and
+PMI which will serve as the physical
+model to be used in carrying the simulation at hand. In some
+parts of the (internal) code, these are also referred to as the
+subset data since they represent a subset of the reference data.
+
+At the problem level the concepts of test species and background
+species are introduced.
+Most simply, test species are the ones
+DEGAS 2 will track as they collide off of background species.
+The use of the word species here is important: both of the test
+and background lists are subsets of the ``species'' list. 
+One more precise distinction between the
+two species types is that we assume that we know the distribution
+function (in space and velocity) of the background species; in
+fact, such information is required input to DEGAS 2. On the other
+hand, we are attempting to {\em compute} the test species
+distribution function, moments of which serve as the primary output
+of DEGAS 2.
+
+The problem input file associated with the symbolic name in 
+\verb+problem_infile+ in \verb+degas2.in+ consists of five sections, 
+one for each of
+the problem-level physics subsets, separated by the
+corresponding heading (in capital letters). It is the object
+symbols (as opposed to the longer ``names'') which are used in these
+lists. For example,
+
+\begin{verbatim}
+TEST
+
+0 D D2 D2+
+
+BACKGROUND
+
+e D+
+
+REACTION
+
+hchex
+hionize
+h2dis
+h2ion
+h2dision
+h2pdision
+h2pdis
+h2pdisrec
+
+MATERIALS
+
+mo
+mirror
+Ex
+
+PMI
+
+dreflmo
+hdesorbmo
+h2desorbmo
+hmirror
+h2mirror
+hadsorbex
+h2adsorbex
+\end{verbatim}
+
+This file is read by |problemsetup|. The reference lists are
+searched for these symbols. Associations between the subset
+lists which are needed by the code for tracking the test
+species are built up. The
+required atomic and surface data are read in and repackaged
+for efficient run-time use. All of the resulting information
+is written to the netCDF problem file, which
+corresponds to the symbolic name |problemfile| in \verb+degas2.in+.
 
 @m FILE 'problemsetup.web'
 
@@ -140,10 +219,6 @@ collated accordingly and written to the single output netCDF file
 @I pmidata.hweb
 @I element.hweb
 @I pmiformat.hweb
-
-@ Turn off scoring?
-
-@m SCORING 0
 
 @ The unnamed module.
 
@@ -172,7 +247,7 @@ collated accordingly and written to the single output netCDF file
 
       @<Functions and Subroutines@>
 
-@ Read in data from \verb+problem.input+.
+@ Read in data from \verb+problem_infile+.
 
 @<Functions...@>=
       subroutine read_problem
@@ -523,8 +598,12 @@ background species). The reaction-specific entries will be set in
       @<Memory allocation interface@>
 
       pr_var0_num=1                // Will force |mem_alloc| to be called.
+      var_alloc(pr_var0_list)
+      pr_var0_num=pr_var_mass_change-1+pr_num_change_vars*(pr_background_num+pr_test_num+1)  // The last ``1'' here accounts for the generic entries.
+@#if 0
       var_realloca(pr_var0_list)   // Need here since will be using later also
-      pr_var0_num=pr_var_back_mass-1+pr_num_back_vars*(pr_background_num+1)
+@#endif
+      var_realloc(pr_var0_list,1,mem_size(pr_var0_num))
 
       pr_var0_list[pr_var_unknown]='unknown'
       pr_var0_list[pr_var_mass]='mass'
@@ -541,6 +620,11 @@ background species). The reaction-specific entries will be set in
       pr_var0_list[pr_var_emitter_vf_Maxwell_3]='emitter_vf_Maxwell_3'
       pr_var0_list[pr_var_emitter_vth_Maxwell]='emitter_vth_Maxwell'
 
+      pr_var0_list[pr_var_mass_change]='mass_change'     // Generic entries
+      pr_var0_list[pr_var_momentum_change_vector]='momentum_change_vector'
+      pr_var0_list[pr_var_momentum_change_2]='momentum_change_2'
+      pr_var0_list[pr_var_momentum_change_3]='momentum_change_3'
+      pr_var0_list[pr_var_energy_change]='energy_change'
       pr_var0_list[pr_var_mass_in]='mass_in'      
       pr_var0_list[pr_var_momentum_in_vector]='momentum_in_vector'
       pr_var0_list[pr_var_momentum_in_2]='momentum_in_2'
@@ -552,24 +636,71 @@ background species). The reaction-specific entries will be set in
       pr_var0_list[pr_var_momentum_out_3]='momentum_out_3'
       pr_var0_list[pr_var_energy_out]='energy_out'
 
-      pr_var0_list[pr_var_back_mass]='back_mass'     // Generic entries
-      pr_var0_list[pr_var_back_momentum_vector]='back_momentum_vector'
-      pr_var0_list[pr_var_back_momentum_2]='back_momentum_2'
-      pr_var0_list[pr_var_back_momentum_3]='back_momentum_3'
-      pr_var0_list[pr_var_back_energy]='back_energy'
-
       assert(pr_background_num >= 1)
       do i=1,pr_background_num
-         pr_var0_list[pr_var_back_index(pr_var_back_mass,i)]
-     $        = 'back_mass_'\/sp_sy(pr_background(i))
-         pr_var0_list[pr_var_back_index(pr_var_back_momentum_vector,i)]
-     $        = 'back_momentum_vector_'\/sp_sy(pr_background(i))
-         pr_var0_list[pr_var_back_index(pr_var_back_momentum_2,i)]
-     $        = 'back_momentum_2_'\/sp_sy(pr_background(i))
-         pr_var0_list[pr_var_back_index(pr_var_back_momentum_3,i)]
-     $        = 'back_momentum_3_'\/sp_sy(pr_background(i))
-         pr_var0_list[pr_var_back_index(pr_var_back_energy,i)]
-     $        = 'back_energy_'\/sp_sy(pr_background(i))
+         pr_var0_list[pr_var_problem_sp_index(pr_var_mass_change,pr_problem_sp_back(i))]
+     $        = 'back_mass_change_'\/sp_sy(pr_background(i))
+         pr_var0_list[pr_var_problem_sp_index(pr_var_momentum_change_vector,pr_problem_sp_back(i))]
+     $        = 'back_momentum_change_vector_'\/sp_sy(pr_background(i))
+         pr_var0_list[pr_var_problem_sp_index(pr_var_momentum_change_2,pr_problem_sp_back(i))]
+     $        = 'back_momentum_change_2_'\/sp_sy(pr_background(i))
+         pr_var0_list[pr_var_problem_sp_index(pr_var_momentum_change_3,pr_problem_sp_back(i))]
+     $        = 'back_momentum_change_3_'\/sp_sy(pr_background(i))
+         pr_var0_list[pr_var_problem_sp_index(pr_var_energy_change,pr_problem_sp_back(i))]
+     $        = 'back_energy_change_'\/sp_sy(pr_background(i))
+         pr_var0_list[pr_var_problem_sp_index(pr_var_mass_in,pr_problem_sp_back(i))]
+     $        = 'back_mass_in_'\/sp_sy(pr_background(i))
+         pr_var0_list[pr_var_problem_sp_index(pr_var_momentum_in_vector,pr_problem_sp_back(i))]
+     $        = 'back_momentum_in_vector_'\/sp_sy(pr_background(i))
+         pr_var0_list[pr_var_problem_sp_index(pr_var_momentum_in_2,pr_problem_sp_back(i))]
+     $        = 'back_momentum_in_2_'\/sp_sy(pr_background(i))
+         pr_var0_list[pr_var_problem_sp_index(pr_var_momentum_in_3,pr_problem_sp_back(i))]
+     $        = 'back_momentum_in_3_'\/sp_sy(pr_background(i))
+         pr_var0_list[pr_var_problem_sp_index(pr_var_energy_in,pr_problem_sp_back(i))]
+     $        = 'back_energy_in_'\/sp_sy(pr_background(i))
+         pr_var0_list[pr_var_problem_sp_index(pr_var_mass_out,pr_problem_sp_back(i))]
+     $        = 'back_mass_out_'\/sp_sy(pr_background(i))
+         pr_var0_list[pr_var_problem_sp_index(pr_var_momentum_out_vector,pr_problem_sp_back(i))]
+     $        = 'back_momentum_out_vector_'\/sp_sy(pr_background(i))
+         pr_var0_list[pr_var_problem_sp_index(pr_var_momentum_out_2,pr_problem_sp_back(i))]
+     $        = 'back_momentum_out_2_'\/sp_sy(pr_background(i))
+         pr_var0_list[pr_var_problem_sp_index(pr_var_momentum_out_3,pr_problem_sp_back(i))]
+     $        = 'back_momentum_out_3_'\/sp_sy(pr_background(i))
+         pr_var0_list[pr_var_problem_sp_index(pr_var_energy_out,pr_problem_sp_back(i))]
+     $        = 'back_energy_out_'\/sp_sy(pr_background(i))
+      end do
+      assert(pr_test_num >= 1)
+      do i=1,pr_test_num
+         pr_var0_list[pr_var_problem_sp_index(pr_var_mass_change,pr_problem_sp_test(i))]
+     $        = 'test_mass_change_'\/sp_sy(pr_test(i))
+         pr_var0_list[pr_var_problem_sp_index(pr_var_momentum_change_vector,pr_problem_sp_test(i))]
+     $        = 'test_momentum_change_vector_'\/sp_sy(pr_test(i))
+         pr_var0_list[pr_var_problem_sp_index(pr_var_momentum_change_2,pr_problem_sp_test(i))]
+     $        = 'test_momentum_change_2_'\/sp_sy(pr_test(i))
+         pr_var0_list[pr_var_problem_sp_index(pr_var_momentum_change_3,pr_problem_sp_test(i))]
+     $        = 'test_momentum_change_3_'\/sp_sy(pr_test(i))
+         pr_var0_list[pr_var_problem_sp_index(pr_var_energy_change,pr_problem_sp_test(i))]
+     $        = 'test_energy_change_'\/sp_sy(pr_test(i))
+         pr_var0_list[pr_var_problem_sp_index(pr_var_mass_in,pr_problem_sp_test(i))]
+     $        = 'test_mass_in_'\/sp_sy(pr_test(i))
+         pr_var0_list[pr_var_problem_sp_index(pr_var_momentum_in_vector,pr_problem_sp_test(i))]
+     $        = 'test_momentum_in_vector_'\/sp_sy(pr_test(i))
+         pr_var0_list[pr_var_problem_sp_index(pr_var_momentum_in_2,pr_problem_sp_test(i))]
+     $        = 'test_momentum_in_2_'\/sp_sy(pr_test(i))
+         pr_var0_list[pr_var_problem_sp_index(pr_var_momentum_in_3,pr_problem_sp_test(i))]
+     $        = 'test_momentum_in_3_'\/sp_sy(pr_test(i))
+         pr_var0_list[pr_var_problem_sp_index(pr_var_energy_in,pr_problem_sp_test(i))]
+     $        = 'test_energy_in_'\/sp_sy(pr_test(i))
+         pr_var0_list[pr_var_problem_sp_index(pr_var_mass_out,pr_problem_sp_test(i))]
+     $        = 'test_mass_out_'\/sp_sy(pr_test(i))
+         pr_var0_list[pr_var_problem_sp_index(pr_var_momentum_out_vector,pr_problem_sp_test(i))]
+     $        = 'test_momentum_out_vector_'\/sp_sy(pr_test(i))
+         pr_var0_list[pr_var_problem_sp_index(pr_var_momentum_out_2,pr_problem_sp_test(i))]
+     $        = 'test_momentum_out_2_'\/sp_sy(pr_test(i))
+         pr_var0_list[pr_var_problem_sp_index(pr_var_momentum_out_3,pr_problem_sp_test(i))]
+     $        = 'test_momentum_out_3_'\/sp_sy(pr_test(i))
+         pr_var0_list[pr_var_problem_sp_index(pr_var_energy_out,pr_problem_sp_test(i))]
+     $        = 'test_energy_out_'\/sp_sy(pr_test(i))
       end do
 
       return
@@ -632,6 +763,9 @@ wavelength-dependent data.
 
       if (num_lines > 0) then
          old_num=pr_var0_num
+@#if 0
+         var_realloc(pr_var0_list,pr_var0_num,pr_var0_num+num_lines)
+@#endif
          pr_var0_num+=num_lines
          var_realloca(pr_var0_list)
          do i=1,num_lines
@@ -738,8 +872,8 @@ also allowing for the isotopically equivalent combinations.
       end do
 
       do i=1,pr_max_equiv
-         num_equiv[i]=0
          do j=1,num_generics
+            num_equiv[j]=0
             equivalents[i,j]=0
          end do
       end do
