@@ -2,6 +2,9 @@
 \Title{matchout}
 
 % $Log$
+% Revision 1.4.2.1  1999/12/16 19:02:49  dstotler
+% Add documentation. Clean up print out format and interface.
+%
 % Revision 1.4  1999/05/25 13:27:45  dstotler
 % Add assert on output_old_file since absence of output file
 % no longer generates a fatal error. Replace reads of .nc
@@ -222,6 +225,19 @@ required comparisons.
 @#endif
          end do
       end do
+
+/*
+   Explicitly free these since they will all be reallocated when the
+   second file is read in (although the arrays had better be the same size!).
+*/
+      var_free(output_all)
+      var_free(output_grp)
+      var_free(out_post_all)
+      var_free(out_post_grp)
+      var_free(output_2D_coupling)
+      var_free(output_weight_grp)
+      var_free(output_num_flights)
+      var_free(output_random_seed)
 
       filenames_array[outputfile]=file2
       call nc_read_output
