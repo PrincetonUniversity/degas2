@@ -2,6 +2,10 @@
 \Title{DEGAS Initialization Routine}
 
 % $Log$
+% Revision 1.5  1999/05/25 13:34:29  dstotler
+% Remove nc_read_output to allow degas_init routine to be used
+% in more places.
+%
 % Revision 1.4  1998/06/01 15:56:31  karney
 % MPI enabled version.
 %
@@ -38,6 +42,8 @@
 @I reaction.hweb
 @I pmiformat.hweb
 @I mpi.hweb
+@I tally.hweb
+@I output.hweb
 
 @ The main program.
 
@@ -72,4 +78,45 @@
       return
       end
       
+@ Function to extract data from output arrays.
+
+@<Functions...@>=
+      function extract_output_datum(index_parameters,icomp,scores,mom,name)
+
+      implicit_none_f77
+      pr_common                                  // Common
+      tl_common
+      implicit_none_f90
+      
+      tl_decls
+
+      real extract_output_datum                  // Function
+      integer index_parameters[tl_index_max]     // Input
+      integer icomp,mom
+      real scores[0:*][o_mean:o_var]  
+      character*(*) name
+      integer tally_number,i                     // Local
+      integer ind_val[tl_rank_max]
+
+      st_decls
+
+      tally_number=string_lookup(name,tally_name,tl_num)
+      assert(tally_number > 0)
+      assert(icomp <= tally_dep_var_dim[tally_number])
+      
+      do i=1,tl_rank_max
+         if (i <= tally_rank[tally_number]) then
+            ind_val[i]=index_parameters[tally_indep_var[tally_number][i]]-1
+            assert(ind_val[i] >= 0 
+     $           && ind_val[i] < tally_tab_index[tally_number][i])
+         else
+            ind_val[i]=0
+         end if
+      end do
+
+      extract_output_datum=scores[out_array_index(icomp,ind_val,tally_number)][mom]
+
+      return
+      end
+
 @* INDEX.
