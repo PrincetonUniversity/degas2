@@ -3,6 +3,9 @@
 % $Id$
 
 % $Log$
+% Revision 1.16  1999/03/25 20:47:59  dstotler
+% Move in attribute descriptions from classes.web file.
+%
 % Revision 1.15  1997/08/19 14:37:12  karney
 % Changes to support compilation under f90.  This involved extensive changes
 % in array.hweb and sysdep.web.  Nearly all other files needed some
@@ -107,6 +110,8 @@ identified by an integer indexing into these arrays.
       define_var_pk(zn,zone_type_num,INT,zone_type_ind)
       define_varp_pk(zn,zone_type,INT,zone_ind)
       define_varp_pk(zn,zone_index,INT,zone_index_ind,zone_ind)
+      define_var_pk(zn,zone_index_min,INT,zone_index_ind)
+      define_var_pk(zn,zone_index_max,INT,zone_index_ind)
       define_varp_pk(zn,zone_pointer,INT,zone_ind)
       define_varp_pk(zn,zone_volume,FLOAT,zone_ind)
       define_varp_pk(zn,zone_center,FLOAT,vector,zone_ind)
@@ -155,5 +160,11 @@ point is not necessarily part of the zone.
   \item[|zone_max[zone]|] Maximum value of the coordinates of the corners of 
 the zone; the maximum is performed separately for each component so that this 
 point is not necessarily part of the zone.
+
+  \item[|zone_index_min[l]|] Minimum value of |zn_index(zone,l)| for
+$l=1, \rightarrow$ |zn_index_max|.
+
+  \item[|zone_index_max[l]|] Maximum value of |zn_index(zone,l)| for
+$l=1, \rightarrow$ |zn_index_max|.
 \end{description}
 
