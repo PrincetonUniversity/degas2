@@ -1,0 +1,127 @@
+% $Id$
+\Title{aux2dsetup}
+
+% $Log$
+
+@* Auxiliary routines needed by geometry definition programs. These
+routines are called by both |readgeometry| and |definegeometry2d|.
+
+\ID{$Id$}
+
+@m FILE 'aux2dsetup.web'
+
+@I macros.hweb
+@I sysdep.hweb
+@I geomint.hweb
+@I zone.hweb
+@I detector.hweb
+
+@ The unnamed module.
+
+@a
+      @<Functions and Subroutines@>
+
+@ Determine adjoining zones and faces from two polygon points.
+
+@m xz_index 2
+
+@<Functions...@>=
+      subroutine find_poly_zone(xa,xb,type,zone1,face1,zone2)
+      implicit_none_f77
+      gi_common
+      zn_common
+      implicit_none_f90
+      real xa[xz_index],xb[xz_index]                         // Input
+      integer type
+      integer zone1,zone2,face1                              // Output
+      integer count_pos,count_neg,index_pos,                 // Local
+     $     index_neg,temp_zone,i
+      external lookup_surface
+      integer lookup_surface
+      vc_decl(x1)
+      vc_decl(x2)
+
+      vc_set(x1,xa[1],zero,xa[2])  // Use |zero| to match |process_polygon|
+      vc_set(x2,xb[1],zero,xb[2])
+      face1=lookup_surface(x1,x2)
+      assert(face1 != 0)           // I guess this should always be true!
+
+      count_pos=surfaces[s_pos,s_count,abs(face1)]
+      count_neg=surfaces[s_neg,s_count,abs(face1)]
+
+      index_pos=surfaces[s_pos,s_start,abs(face1)]
+      index_neg=surfaces[s_neg,s_start,abs(face1)]
+
+      zone1=-1
+      zone2=-1
+
+/*
+   For this, |zone1| = -1 or |zone2| = -1 indicates failure to uniquely
+   identify a zone, e.g., because there are no neighbors (universal
+   cell). The loop also allows for the possibility that a zone has been
+   split into multiple cells.
+*/
+      if (count_pos > 0) then
+         do i=1,count_pos
+            if (zone1 == -1) then
+               zone1=cells[c_zone,neighbors[index_pos+i-1]]
+            else if (zone1 != cells[c_zone,neighbors[index_pos+i-1]]) then
+               zone1=-1
+               return
+            end if
+         end do
+      end if
+      face1=abs(face1)  
+
+      if (count_neg > 0) then
+         do i=1,count_neg
+            if (zone2 == -1) then
+               zone2=cells[c_zone,neighbors[index_neg+i-1]]
+            else if (zone2 != cells[c_zone,neighbors[index_neg+i-1]]) then
+               zone2=-1
+               return
+            end if
+         end do
+      end if
+
+/*
+   In the case where the two zone types differ, arrange so that the zone-type
+   of |zone1| matches the input |type| (no changes needed for opposite case!).
+*/
+      if (zn_type(zone1) != type) then
+         assert(zn_type(zone2) == type)
+         face1=-face1
+         temp_zone=zone1
+         zone1=zone2
+         zone2=temp_zone
+      end if
+
+      return
+      end
+
+@ Default detector setup. Just allocates arrays; no views are defined.
+
+@<Functions...@>=
+      subroutine null_detector_setup
+
+      implicit_none_f77
+      de_common
+      zn_common
+      implicit_none_f90
+
+      @<Memory allocation interface@>
+
+      detector_total_views=0   
+      var_alloc(de_view_points)
+      var_alloc(de_view_algorithm)
+      var_alloc(de_view_halfwidth)
+      var_alloc(de_zone_frags)
+      
+      de_grps=0
+      de_view_size=1
+      var_alloc(de_view_tab)
+
+      return
+      end
+
+@* INDEX.
