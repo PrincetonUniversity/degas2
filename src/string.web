@@ -2,6 +2,9 @@
 \Title{system dependent routines}
 
 % $Log$
+% Revision 1.8.4.1  1999/12/16 18:58:03  dstotler
+% Add read_int_soft_fail.
+%
 % Revision 1.8  1997/08/19 14:37:07  karney
 % Changes to support compilation under f90.  This involved extensive changes
 % in array.hweb and sysdep.web.  Nearly all other files needed some
@@ -294,7 +297,7 @@ and corrected.
       function read_int_soft_fail(string)
       implicit_none_f77
       implicit_none_f90
-      integer read_int_soft_fail      // Function
+      integer read_int_soft_fail          // Function
       character*(*) string                // Input
       character*10 form                   // Local
       
@@ -320,6 +323,28 @@ eof:  continue
       
       write(form,'(a,i3.3,a)') '(f',len(string),'.0)'
       read(string,form) read_real
+      
+      return
+      end
+
+@ Read a real from a string. This version has a soft failure
+mode to be used in situations where unexpected input can be caught
+and corrected.
+
+@<Functions...@>=
+      function read_real_soft_fail(string)
+      implicit_none_f77
+      implicit_none_f90
+      real read_real_soft_fail  // Function
+      character*(*) string      // Input
+      character*10 form         // Local
+      
+      write(form,'(a,i3.3,a)') '(f',len(string),'.0)'
+      read(string,form,err=eof) read_real_soft_fail
+      return
+
+eof:  continue
+      read_real_soft_fail=real_undef
       
       return
       end
