@@ -3,6 +3,9 @@
 % $Id$
 
 % $Log$
+% Revision 1.8  1999/03/25 20:46:56  dstotler
+% Move in attribute descriptions from classes.web file.
+%
 % Revision 1.7  1998/05/08 13:55:27  dstotler
 % Add call to init_base to ragged_alloc.
 %
@@ -183,6 +186,8 @@ evaluate the fit; their identity is stored in the corresponding |var| array
 just as for tables.
   \item The data table passed (the fit coefficients) is considered to be 
 strictly 1-D with |tab_index[1]| elements.
+  \item The multiplier |mult| does get applied to the fit coefficients.
+Hence, |mult[0]| should probably be set to one.
   \item No spacing or value information is stored for the independent 
 variables. Since this information is at least likely to be peculiar to each 
 fit and at most irrelevant, it is assumed to reside within the fit function.
