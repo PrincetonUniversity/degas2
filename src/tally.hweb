@@ -3,6 +3,9 @@
 % $Id$
 
 % $Log$
+% Revision 1.8  1999/04/20 20:20:46  dstotler
+% Increase scoring_data_max to 100.
+%
 % Revision 1.7  1999/03/25 20:47:49  dstotler
 % Move in attribute descriptions from classes.web file.
 %
@@ -61,11 +64,12 @@ For further documentation, see the classes.web file.
 @m tl_copy(x,y) y=x @;
 
 @m tl_check(x) (x > 0 && x <= tl_num && 
-      tl_type(x) > 0 && tl_type(x) <= tl_type_max)
+      tally_type(x) > 0 && tally_type(x) <= tl_type_max)
 
 @ Constant specifications.
 
 @m tl_type_max 3                  // Types of different tallies
+@m tl_type_undefined 0
 @m tl_type_sector 1
 @m tl_type_test 2
 @m tl_type_reaction 3
@@ -77,11 +81,15 @@ For further documentation, see the classes.web file.
 
 @m tl_rank_max 5
 
-@m tl_index_unknown 0             // Indices for the independent variables
+@ Indices for the independent variables. These are associated with
+strings in subroutine |set_var_list|. Additions here must be made
+there as well.
+
+@m tl_index_unknown 0             
 @m tl_index_zone 1
 @m tl_index_plasma_zone 2
 @m tl_index_test 3
-@m tl_index_back 4
+@m tl_index_problem_sp 4
 @m tl_index_detector 5          
 @m tl_index_test_author 6         // Reaction or PMI responsible for $\vec{v}$
 @m tl_index_reaction 7
@@ -93,9 +101,10 @@ For further documentation, see the classes.web file.
 @m tl_index_strata_segment 13
 @m tl_index_energy_bin 14
 @m tl_index_angle_bin 15
-@m tl_index_detector 16
-@m tl_index_wavelength_bin 17
-@m tl_index_diagnostic 18
+@m tl_index_wavelength_bin 16
+@m tl_index_diagnostic 17
+@m tl_index_zone_ind_1 18
+@m tl_index_zone_ind_2 19
 @m tl_index_max 100               // An arbitrary limit
 
 @m tl_name_length 80              // For tally names
@@ -110,7 +119,7 @@ For further documentation, see the classes.web file.
 @m tl_dep_var_scalar 1            // For |tally_dep_var_dim|
 @m tl_dep_var_vector 3
 
-@m tl_scoring_index(t,j,ip) pr_var_back_index(t+j-1,ip[tl_index_back])
+@m tl_scoring_index(t,j,ip) pr_var_problem_sp_index(t+j-1,ip[tl_index_problem_sp])
 
 @m tl_cv_unknown 0                // Tally conversions    
 @m tl_cv_scaler_unknown 0
@@ -131,7 +140,7 @@ For further documentation, see the classes.web file.
 @m tl_cv_divide_number 4
 
 @m tl_cv_test_mass 1              // Scalers and other parameters used 
-@m tl_cv_back_mass 2
+@m tl_cv_problem_sp_mass 2
 @m tl_cv_volume 3
 @m tl_cv_Pa_per_mTorr 4
 @m tl_cv_pos_1 5
@@ -144,7 +153,7 @@ For further documentation, see the classes.web file.
 
 @m tl_cv_max_params 11  
 
-@m scoring_data_max 100            // Length of |scoring_data| array
+@m scoring_data_max 200            // Length of |scoring_data| array
 @m max_bins 200
 
 @ Variable definitions. |tally_ind| is dimensioned from zero to
@@ -162,6 +171,7 @@ accomodate netcdf.  The 0 index is unused. ??? Start from 1 for now.
       define_dimen_pk(tl,tally_cv_ptr_ind,tl_cv_max_conversions)
       define_dimen_pk(tl,tally_cv_scaler_ind,tl_cv_max_scalers)
       define_dimen_pk(tl,tally_cv_partner_ind,tl_cv_max_partners)
+      define_dimen_pk(tl,tally_index_ind,0,tl_index_max)
 
       define_var_pk(tl,tl_num,INT)                     
       define_dimen_pk(tl,tally_ind,tl_num)
@@ -179,7 +189,7 @@ accomodate netcdf.  The 0 index is unused. ??? Start from 1 for now.
       define_varp_pk(tl,tally_type_base,INT,tally_type_ind)
       define_varp_pk(tl,tally_rank,INT,tally_ind)    
       define_varp_pk(tl,tally_dep_var_dim,INT,tally_ind)
-      define_varp_pk(tl,tally_indep_var,INT,tally_rank_ind,tally_ind)  
+      define_varp_pk(tl,tally_indep_var,INT,tally_rank_ind,tally_ind) 
       define_varp_pk(tl,tally_tab_index,INT,tally_rank_ind,tally_ind)
       define_varp_pk(tl,tally_name,CHAR,tally_name_string,tally_ind) 
       define_varp_pk(tl,tally_dep_var,INT,tally_ind)
@@ -194,6 +204,7 @@ accomodate netcdf.  The 0 index is unused. ??? Start from 1 for now.
       define_varp_pk(tl,tally_cv_num_partners,INT,tally_cv_ind)
       define_varp_pk(tl,tally_cv_scalers,INT,tally_cv_scaler_ind,tally_cv_ind)
       define_varp_pk(tl,tally_cv_partners,INT,tally_cv_partner_ind,tally_cv_ind)
+      define_var_pk(tl,tally_var_list,CHAR,tally_tag_string,tally_index_ind)
 
       define_varlocal_pk(tl,tally_version,CHAR,string)
       package_end(tl)
@@ -241,6 +252,7 @@ deviation are provided. The latter is ill-defined for tallies with
 non-positive tally contributions.
 
 There are three types of tally determined by the dependent variable:
+% Note: the following has been pasted into tallysetup.web.
 \begin{description}
   \item[|tl_type_sector|] A simple event score carried out when a flight 
 crosses a sector. This can be either a material surface or a purely
@@ -262,7 +274,7 @@ based scores of type |tl_type_test|, but also event-based scores
 such as those of type |tl_type_sector| and of |tl_type_reaction| which
 can only be carried out when the reaction actually occurs. The third
 type of estimator |tl_est_post_process| must be derived from existing
-tallies. This option is implemented presently for only a couple of reactions 
+tallies. This option is implemented presently for only certain reactions 
 and tallies; no effort is made to propagate the standard deviation
 values through this process.
 
@@ -272,7 +284,7 @@ by the arrays |tally_est_test| (for type |tl_type_est|) and
 one sensible estimator for |tl_type_sector|, no analogous array
 is carried along for that type. These arrays contain the multiplicative
 factor associated with each estimator for that tally. |tally_est_reaction|
-has an additional index for reaction so that different estimator
+has an additional index so that different estimator
 combinations may be specified for each reaction. {\bf Presently, this
 multiplicative factor is constrained to be either 0 or 1 with the
 sum over estimators equalling 1.} Once more detailed optimization is
@@ -293,10 +305,10 @@ Each conversion maintains pointers back to its tally so that the conversions
 can be carried out completely either by enumerating the conversions 
 for each tally (as is done during tracking) or vice-versa (the case for
 post-processing). The converted data replace the original so that dimension
-reducing conversions would not be easily done via these conversions.
+reducing conversions could not be done with the present approach.
 
-Conversions can be carried at three points during the run, designated as
-the conversion ``type'': |tl_cv_track| for those
+Conversions are carried out at three points during the run; each is 
+designated as a different conversion ``type'': |tl_cv_track| for those
 performed during tracking (the only nontrivial example at present is
 the conversion of velocities from the internal cartesian coordinates to
 the external cylindrical system associated with a toroidally symmetric
@@ -362,7 +374,9 @@ of tally |tally_ind|; presently either 1 (|tl_dep_var_scalar|) or 3
   \item[|tally_indep_var[rank_ind,tally_ind]|] Integer index corresponding
 to the |rank_ind|th independent variable for tally |tally_ind|. The list
 of possible values is lengthy and probably will be subject to considerable
-change; refer to |tally.hweb| for the current list.
+change; refer to |tally.hweb| for the current list (these are macros 
+beginning with |tl_index|; they are matched with strings in 
+subroutine |set_var_list|).
 
   \item[|tally_tab_index[rank_ind,tally_ind]|] Number of values of the
 |rank_ind|th independent variable of tally |tally_ind|.
@@ -375,16 +389,17 @@ word ``vector''.
 quantity being accumulated for tally |tally_ind|. This is set using
 a string specified in the argument list to |define_tally| in |tallysetup|.
 This string is searched for in the global list of dependent variables,
-|pr_var0_list|. The familiar examples are:
+|pr_var0_list|, set in subroutine |init_var0_list|. The familiar examples are:
 
   \begin{enumerate}
-    \item |back_mass| source of mass for the background species due to
-the current test species,
+    \item |mass_change| source of mass for a background or test species 
+(denoted by the generic term ``problem species'') due to the current test 
+species,
 
-    \item |back_momentum_vector| source of vector momentum 
-for the background species due to the current test species,
+    \item |momentum_change_vector| source of vector momentum 
+for a problem species due to the current test species,
 
-    \item |back_energy| source of energy for the background species
+    \item |energy_change| source of energy for a problem species
 due to the current test species,
 
     \item |mass| mass of test species,
