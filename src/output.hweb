@@ -3,6 +3,9 @@
 % $Id$
 
 % $Log$
+% Revision 1.7.4.1  2000/01/22 01:01:42  kanzlr
+% Increase of ou_back_max to utilize neutral-neutral collisions.
+%
 % Revision 1.7  1999/05/25 13:15:23  dstotler
 % Added output_old_file, output_weight_grp, output_num_flights,
 % output_checkpoint, output_random_seed.
@@ -36,6 +39,7 @@
 
 @I tally.hweb
 @I sources.hweb
+@I background.hweb
 
 @ These are the principle output data from DEGAS 2. These are naturally
 grouped with the tally data, but aren't needed until the run is
@@ -66,7 +70,7 @@ complete. Hence, we have collected them separately here.
 
       define_dimen_pk(ou,output_coupling_ind,ou_coupling_max) 
       define_dimen_pk(ou,output_moments_ind,o_mean,o_var)
-      define_dimen_pk(ou,ou_back_ind,ou_back_max)
+      define_dimen_pk(ou,ou_back_ind,pr_background_num)
 
       define_dimen_pk(ou,output_tab_ind,0,tally_size-1)
       define_dimen_pk(ou,output_grps_ind,so_grps)
@@ -88,7 +92,6 @@ complete. Hence, we have collected them separately here.
       define_varp_pk(ou,out_post_all,FLOAT,output_moments_ind,output_tab_ind) 
       define_varp_pk(ou,out_post_grp,FLOAT,output_moments_ind,output_tab_ind,output_grps_ind)
       define_varp_pk(ou,output_2D_coupling,FLOAT,output_ind_1,output_ind_2,ou_back_ind,output_coupling_ind,output_grps_ind) 
-
       define_varp_pk(ou,output_weight_grp,FLOAT,output_grps_ind)
       define_varp_pk(ou,output_num_flights,INT,output_grps_ind)
       define_varp_pk(ou,output_random_seed,INT,output_seed_ind,output_grps_ind)
