@@ -2,6 +2,11 @@
 \Title{score}
 
 % $Log$
+% Revision 1.11  1999/07/22 17:58:05  dstotler
+% Permit each detector / diagnostic segment to have its own set of
+% bins. This bug was causing overlapping (e.g., opposing) detector
+% views to report the same spectra.
+%
 % Revision 1.10  1999/07/19 19:29:04  karney
 % (1) Remove much dead code in random.web.
 %
@@ -758,7 +763,7 @@ wavelength of emissions.
       integer pointer,dep_var
       real scoring_data[scoring_data_max]
 
-      integer number_segments,number_bins,bin_label           // Output
+      integer number_segments,bin_label           // Output
       integer segments[max_segments],number_bins[max_segments],
      $     bins[max_segments][max_bins]
       real geom_mult[max_segments][max_bins]
@@ -1014,7 +1019,7 @@ bins. The treated variables thus far are energy and angle of incicidence.
       integer pointer,dep_var
       real scoring_data[scoring_data_max]
 
-      integer number_segments,number_bins,bin_label   // Output
+      integer number_segments,bin_label   // Output
       integer segments[max_segments],number_bins[max_segments],
      $     bins[max_segments][max_bins]
       real geom_mult[max_segments][max_bins]
