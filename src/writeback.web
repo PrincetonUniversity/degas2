@@ -2,6 +2,12 @@
 \Title{writeback}
 
 % $Log$
+% Revision 1.8  1999/07/22 18:00:23  dstotler
+% Make writing of oldsourcefile conditional on presence of name in
+% degas2.in since it's not used for every run. Use update flag to denote
+% old or new run rather than locally doing a check on source_segment_ptr
+% (this didn't work well in DEBUG=no mode).
+%
 % Revision 1.7  1999/05/25 13:32:54  dstotler
 % Allocate & set default value for source_num_checkpoints.
 % Completely rewritten to facilitate creation of updatebackground.
@@ -72,12 +78,14 @@ Introduction\ldots
       implicit_none_f77
       zn_common                                       // Common
       bk_common
+      sp_common
+      pr_common
       implicit_none_f90
 
       character*FILELEN file                          // Input
 
-      integer nx,ny                                   // Output
-      real rm[bk_mx,bk_my,0:4],zm[bk_mx,bk_my,0:4],
+      integer sp_back
+           real rm[bk_mx,bk_my,0:4],zm[bk_mx,bk_my,0:4],
      $     ni[bk_mx,bk_my],vr[bk_mx,bk_my],vz[bk_mx,bk_my],vphi[bk_mx,bk_my],
      $     te[bk_mx,bk_my],ti[bk_mx,bk_my],
      $     ni1[bk_my],vr1[bk_my],vz1[bk_my],vphi1[bk_my],
@@ -134,18 +142,26 @@ Introduction\ldots
       read (nu,*,err= 6)SP (flux2[j2],j2=1,ny)
 @#endif
 
-      i=0
-      do j1=1,nx
-         do j2=1,ny
-            i++
-            assert(i<=zone_type_num[zn_plasma])
-            assert(j1==zn_index(i,1) && j2==zn_index(i,2))
-            background_n[1,i]= ni[j1,j2]
-            background_n[2,i]= ni[j1,j2]
-            background_temp[1,i]= te[j1,j2]
-            background_temp[2,i]= ti[j1,j2]
-            vc_set(background_v[1,i],vr[j1,j2],vphi[j1,j2],vz[j1,j2])
-            vc_copy(background_v[1,i],background_v[2,i])
+      do sp_back = 1 , bk_num
+         i=0
+         do j1=1,nx
+            do j2=1,ny
+               i++
+               assert(i<=zone_type_num[zn_plasma])
+               assert(j1==zn_index(i,1) && j2==zn_index(i,2))
+               if ( sp_z(pr_background(sp_back)) == 0 ) then
+                  background_n[sp_back,i] = zero
+                  background_temp[sp_back,i] = zero
+                  background_pres[sp_back,i] = zero
+                  vc_set(background_v[sp_back,i],zero,zero,zero)
+               else
+                  background_n[sp_back,i] = ni[j1,j2]
+                  if(sp_back == 1) background_temp[sp_back,i] = te[j1,j2]
+                  if(sp_back == 2) background_temp[sp_back,i] = ti[j1,j2]
+                  background_pres[sp_back,i] = zero
+                  vc_set(background_v[sp_back,i],vr[j1,j2],vphi[j1,j2],vz[j1,j2])
+               endif
+            enddo
          enddo
       enddo
       assert(i==zone_type_num[zn_plasma])
@@ -286,10 +302,10 @@ Introduction\ldots
       sp_common
       implicit_none_f90
 
-      integer jr,update           // Input
+      integer jr,zone,update           // Input
+
       so_decl(grp)
 
-      integer jr,zone             // Local
       real rate
       pt_decl(bk_rg2)
       lc_decl(zone_loc)
