@@ -450,6 +450,43 @@ reagents, they cannot be used for other species. Once "species-specific"
 reactions have been enabled in DEGAS 2, this caveat will be enforced
 automatically by the code.
 
+ELECTRON IMPACT IONIZATION OF ARGON
+
+     --Version 1.0--
+This file can be generated from the Aladdin format data in argon.dat
+(in degas2/Aladdin/data). These fit coefficients were taken from EIRENE's
+AMJUEL file (this version was dated 1/20/99). Comments there indicate that
+they originated in Behringer's STRAHL code, with an introduction date 
+of 1/96. Although these coefficients are in the familiar Janev format,
+no restrictions are given on the temperature range. No bizarre behavior
+is noted over the usual 1 -> 5.e4 range, so that has been used here.
+The reaction rate compares well with the one in the atmc.dat file and
+with a simpler one quoted by Nichols and Manos, J. Appl. Phys. 80 (1996),
+2643. Note that AMJUEL also had a fit for the energy loss per reaction of
+15.8 eV (constant), roughly the ionization energy. This loss rate differs
+from that only at the edges of the fit range used here (not sure if this is 
+right).
+
+ARGON CHARGE EXCHANGE
+
+     --Version 1.0--
+This file can be generated from the Aladdin format data in argon.dat
+(in degas2/Aladdin/data). These fit coefficients are equivalent to the
+simple power law decay fit sigma = 5.19e-15 * E**(-0.152) quoted by
+Nichols and Manos (J. Appl. Phys. 80 (1996) 2643). This is a fit to
+earlier experimental data. At least one source (Physics Vade Mecum)
+shows different cross sections, especially above a few eV. However,
+these were not sufficiently well documented to permit their use. 
+As a result, a search for better data should be undertaken. Furthermore,
+the simple power law fit does not give the expected logarithmic
+divergence at low energies. The power law fit also leads to a 
+sigma-v which is monotonically increasing over the full energy range.
+Hence, the rejection technique in subr. chargex will break for energies
+above the maximum. The original cross section data were valid over 
+a few eV to 400 eV. The energy and temperature ranges here were taken
+to be that as well. These data will be replaced once more recent
+cross section fits are identified.
+
 ___________________________________________________________________________
 
    P L A S M A  -  M A T E R I A L  I N T E R A C T I O N S
@@ -755,7 +792,34 @@ PMI data files.
 Manually fill unused portion of main data table with real_unused and set 
 unused fit coefficient for "cosine velocity_vector" to real_undef.
 
+ARGON REFLECTION ON IRON
 
+     --Version 1.0--
+Generated this file manually using data from BongJu Lee and Mi Joung. The 
+reflection coefficient
+values were provided by Lee, apparently by a TRIM calculation (dependent
+only upon the incident energy). These were interpolated onto a uniform 
+mesh by KaleidaGraph and pasted in here. Likewise, the energy reflection
+coefficients were provided as a simple table from 1 to 100 eV. These
+were interpolated onto a regular mesh and pasted into the file. Note that
+the energy independent variable extends to zero to provide a linear
+extrapolation at energies much smaller than 1 eV. The exponent in the 
+cosine-to-a-power angular distribution (1.8) came from Lee.
+
+ARGON DESORPTION FROM IRON
+arreflfe.nc
+
+     --Version 1.0--
+Just copied the existing hdesorbmo.nc file. Velocity vector is cosine;
+energy is 1.5 times wall temperature.
+
+ARGON REFLECTION ON MIRROR
+armirror.nc
+
+     --Version 1.0--
+Simple data file describing unit yield, specular reflection off a surface,
+i.e., a mirror. This file was copied from hmirror.nc and edited to replace
+H with Ar.
 
 ***NOTE: The following files should probably be updated to contain the
 "real_unused" constant in the appropriate places. Holding off on doing this
@@ -763,3 +827,4 @@ in case we want to add variables to control extrapolation:
 
 h2dis.nc, h2dision.nc, h2ion.nc, h2pdis.nc, h2pdision.nc, h2pdisrec.nc,
 hchex.nc (CRAMD files?)
+
