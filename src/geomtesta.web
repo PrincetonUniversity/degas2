@@ -2,6 +2,10 @@
 \Title{geomtesta}
 
 % $Log$
+% Revision 1.18  1998/01/14 20:44:09  dstotler
+% Update to utilize "converted" scores. Add usage of component (i.e.,
+% scalar or choice of vector component) to extract_output_datum.
+%
 % Revision 1.17  1997/08/19 14:36:41  karney
 % Changes to support compilation under f90.  This involved extensive changes
 % in array.hweb and sysdep.web.  Nearly all other files needed some
@@ -76,6 +80,7 @@
 @I zone.hweb
 @I background.hweb
 @I problem.hweb
+@I detector.hweb
 @I species.hweb
 @I tally.hweb
 @I output.hweb
@@ -128,17 +133,19 @@
       bk_common
       zn_common
       pr_common
+      de_common
       implicit_none_f90
       real x[3],a[3],b[3],alen,blen,ha_rate,halpha_tot,  // Local
      $     ha_temp,density,pressure
       real integrals[4]
-      integer i,j,k,zone,test,back
+      integer i,j,k,zone,test,back,iview
       integer index_parameters[tl_index_max]
       external zone_func,density_func,te_func,ti_func
       integer zone_func,density_func,te_func,ti_func
       external extract_output_datum,integral_region
       real extract_output_datum
       integer integral_region
+      character*4 ivlab
 
       declare_varp(hdf_data)
       
@@ -182,6 +189,27 @@
      $     x,a,b,alen,blen)
 
 @#endif
+      do j=1,3
+         if (j==1) then
+            iview=1
+            ivlab='1'
+         else if (j==2) then
+            iview=35
+            ivlab='35'
+         else 
+            iview=36
+            ivlab='spec'
+         end if
+         do i=1,zn_num
+            if (zn_type(i) == zn_plasma || zn_type(i) == zn_vacuum) then
+               hdf_data[i]=de_zone_frags[i][iview]
+            else
+               hdf_data[i]=zero
+            end if
+         end do
+         call data_slice('zn_frag_'\/trim(ivlab)\/'.hdf',hdf_data,
+     $        'zone frag view '\/trim(ivlab),' ','E11.3',x,a,b,alen,blen)
+      end do
 @#if 1
       do j=2,pr_test_num
          index_parameters[tl_index_test]=j
