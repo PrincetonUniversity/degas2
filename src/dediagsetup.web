@@ -2,6 +2,10 @@
 \Title{dediagsetup}
 
 % $Log$
+% Revision 1.6  1999/07/22 17:53:10  dstotler
+% Change var_realloc call for de_view_tab to match change in size. Add
+% an assert to verify that de_view_size = 1 for the no detectors case.
+%
 % Revision 1.5  1999/07/19 19:28:54  karney
 % (1) Remove much dead code in random.web.
 %
@@ -111,7 +115,7 @@ it must be made large enough to encompass all relevant diagnostic points.
       vc_set(yhat,zero,one,zero)    // Ignorable coordinate in sym. geom.
       do i=1,detector_total_views
          dang=de_view_halfwidth[i]
-         nang=30*(de_view_halfwidth[i]*const(1.8,2)/PI) // 30 virtual chords per degree
+         nang=nint(const(30.)*(de_view_halfwidth[i]*const(1.8,2)/PI)) // 30 virtual chords per degree
          vc_copy(de_view_points[i][de_view_start],x0)
          vc_copy(de_view_points[i][de_view_end],x1)
          vc_difference(x1,x0,deltax)
