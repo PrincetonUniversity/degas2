@@ -50,6 +50,10 @@ DT+ 1 D 1 T -1 e = H2+
 molecular tritium ion
 T2+ 2 T -1 e     = H2+
 helium
-He
+He 1 He
+argon
+Ar 1 Ar
+Argon ion
+Ar+ 1 Ar -1 e
 
 
