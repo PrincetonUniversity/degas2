@@ -3,6 +3,9 @@
 % $Id$
 
 % $Log$
+% Revision 1.7  1999/03/25 20:56:28  dstotler
+% Increased npv in generic case from 28 to 35.
+%
 % Revision 1.6  1998/04/16 15:31:00  karney
 % Various changes to clean up code in support of Linux.
 %
@@ -96,7 +99,7 @@ stuff required only for this modest task.
      &   npw=6,npsegxz=43,npsegy=1,npexit=1,npgraf=400,nptviews=250)
 @#else
         parameter (npns=5,npis=5,npntyp=2,nphyd=3,
-     $     nph=124,npv=35,npt=1,npptshb=npv+1,npptsvb=nph+1,npptskb=npt+1,
+     $     nph=124,npv=52,npt=1,npptshb=npv+1,npptsvb=nph+1,npptskb=npt+1,
      $     npw=8,npsegxz=139,npsegy=1,npexit=1,npgraf=100,nptviews=250)
 @#endif
 @#endif
