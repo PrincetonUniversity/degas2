@@ -2,6 +2,11 @@
 \Title{sourcetest}
 
 % $Log$
+% Revision 1.7.2.1  1999/12/16 19:01:22  dstotler
+% Several changes associated with new documentation. Added calculation
+% of chi-squared probability distribution. Replaced degas_init call with
+% a local routine which skips the (unneeded) read of the tally.nc file.
+%
 % Revision 1.7  1999/05/25 13:43:15  dstotler
 % Copy lines for setting so_direct_delta from flighttest.web.
 % Note: was before not properly initializing seed. Doing sonow from so_seed_string. Added advances and rn_init's for seeds so segment test gets same results as main code.
@@ -653,7 +658,7 @@ Recipes} by W. H. Press et al. (Cambridge Press, New York, 1986).
          sum+=del
          if (abs(del) < abs(sum)*eps) go to break
       end do
-      assert("a too large, itmax too small")
+      assert("a too large, itmax too small" == " ")
 break: continue
       gamser=sum*exp(-x+a*log(x)-gln)
 
@@ -714,7 +719,7 @@ representation as |gammcf|. Also returns $\ln \Gamma (a)$ as |gln|. Taken from
             gold=g                                 // Not converged, try again
          end if
       end do
-      assert("a too large, itmax too small")
+      assert("a too large, itmax too small" == " ")
 break: continue
       gammcf=g*exp(-x+a*log(x)-gln)
 
