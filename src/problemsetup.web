@@ -2,6 +2,16 @@
 \Title{problemsetup}
 
 % $Log$
+% Revision 1.31.2.1  1999/12/16 18:14:34  dstotler
+% Changed num_equiv[i] to num_equiv[j] in initialization do loops; got
+% missed in fix of equivalents array indices. Move input file
+% documentation from manual to here. Changes to allow test
+% exchange tallies and PMI tallies as fn. of incident test:  Change
+% generic and specific pr_var0_list entres related to mass exchanges,
+% etc. to include both background and test species. Change memory
+% allocation for pr_var0_list. Defined species-labeled entries for -in &
+% -out variables.
+%
 % Revision 1.31  1999/04/20 20:11:54  dstotler
 % Copied over most of Randy's changes to 1) fix order of array arguments
 % for equivalents, 2) force ordering of reaction reagents. Add code for
@@ -604,6 +614,9 @@ background species). The reaction-specific entries will be set in
       var_realloca(pr_var0_list)   // Need here since will be using later also
 @#endif
       var_realloc(pr_var0_list,1,mem_size(pr_var0_num))
+      do i=1,pr_var0_num
+         pr_var0_list[i]=char_uninit
+      end do
 
       pr_var0_list[pr_var_unknown]='unknown'
       pr_var0_list[pr_var_mass]='mass'
