@@ -2,6 +2,11 @@
 \Title{readgeometry}
 
 % $Log$
+% Revision 1.42.2.1  1999/12/16 18:55:48  dstotler
+% Added specific code to set up diagnostic sectors for Spencer's C-Mod
+% runs (using old DEGAS geometries). Enabled by macro. Comment out
+% unneeded setting of zn_volume in new_zone keyword section.
+%
 % Revision 1.42  1999/07/22 17:57:21  dstotler
 % Added some values for polygon_segment in an attempt to get
 % sector_strata_segment to have all non-trivial values.  (Not completely
@@ -2469,16 +2474,16 @@ follow immediately below (FWEB insisted things be arranged this way).
       real theta[ctop_views]
 
       data (theta(i),i=1,ctop_views)
-     .      /-1.59500e+01,-1.50800e+01,-1.41000e+01,-1.32200e+01,
-     .       -1.22200e+01,-1.12700e+01,-1.03200e+01,-9.35501e+00,
-     .       -8.39001e+00,-7.46500e+00,-6.54001e+00,-5.51001e+00,
-     .       -4.48001e+00,-3.48999e+00,-2.50000e+00,-1.66699e+00,
-     .       -8.34015e-01, 2.63000e-01, 1.35999e+00, 2.50500e+00,
-     .        3.64999e+00, 4.53000e+00, 5.41000e+00, 6.33499e+00,
-     .        7.26001e+00, 8.28500e+00, 9.31000e+00, 1.02650e+01,
-     .        1.12200e+01, 1.21700e+01, 1.31200e+01, 1.41000e+01,
-     .        1.50800e+01, 1.59500e+01, 1.69100e+01/
-
+     .      /const(-1.59500,1),const(-1.50800,1),const(-1.41000,1),
+     .       const(-1.32200,1),const(-1.22200,1),const(-1.12700,1),
+     .       const(-1.03200,1),const(-9.35501),const(-8.39001),const(-7.46500),
+     .       const(-6.54001),const(-5.51001),const(-4.48001),const(-3.48999),
+     .       const(-2.50000),const(-1.66699),const(-8.34015,-1),
+     .       const(2.63000,-1),const(1.35999),const(2.50500),const(3.64999),
+     .       const(4.53000),const(5.41000),const(6.33499),const(7.26001),
+     .       const(8.28500),const(9.31000),const(1.02650,1),const(1.12200,1),
+     .       const(1.21700,1),const(1.31200,1),const(1.41000,1),
+     .       const(1.50800,1),const(1.59500,1),const(1.69100,1)/
       @<Memory allocation interface@>
 
       detector_total_views=ctop_views+1   // Spectrum chord is different
@@ -2563,100 +2568,13 @@ follow immediately below (FWEB insisted things be arranged this way).
       subroutine rg_detector_setup
 
       implicit_none_f77
-      de_common
-      zn_common
       implicit_none_f90
 
-      @<Memory allocation interface@>
-
-      detector_total_views=0   
-      var_alloc(de_view_points)
-      var_alloc(de_view_algorithm)
-      var_alloc(de_view_halfwidth)
-      var_alloc(de_zone_frags)
-      
-      de_grps=0
-      de_view_size=1
-      var_alloc(de_view_tab)
+      call null_detector_setup
 
       return
       end
 
-
-@ Determine adjoining zones and faces from two polygon points.
-@<Functions...@>=
-      subroutine find_poly_zone(xa,xb,type,zone1,face1,zone2)
-      implicit_none_f77
-      gi_common
-      zn_common
-      implicit_none_f90
-      real xa[xz_index],xb[xz_index]                         // Input
-      integer type
-      integer zone1,zone2,face1                              // Output
-      integer count_pos,count_neg,index_pos,                 // Local
-     $     index_neg,temp_zone,i
-      external lookup_surface
-      integer lookup_surface
-      vc_decl(x1)
-      vc_decl(x2)
-
-      vc_set(x1,xa[1],zero,xa[2])  // Use |zero| to match |process_polygon|
-      vc_set(x2,xb[1],zero,xb[2])
-      face1=lookup_surface(x1,x2)
-      assert(face1 != 0)           // I guess this should always be true!
-
-      count_pos=surfaces[s_pos,s_count,abs(face1)]
-      count_neg=surfaces[s_neg,s_count,abs(face1)]
-
-      index_pos=surfaces[s_pos,s_start,abs(face1)]
-      index_neg=surfaces[s_neg,s_start,abs(face1)]
-
-      zone1=-1
-      zone2=-1
-
-/*
-   For this, |zone1| = -1 or |zone2| = -1 indicates failure to uniquely
-   identify a zone, e.g., because there are no neighbors (universal
-   cell). The loop also allows for the possibility that a zone has been
-   split into multiple cells.
-*/
-      if (count_pos > 0) then
-         do i=1,count_pos
-            if (zone1 == -1) then
-               zone1=cells[c_zone,neighbors[index_pos+i-1]]
-            else if (zone1 != cells[c_zone,neighbors[index_pos+i-1]]) then
-               zone1=-1
-               return
-            end if
-         end do
-      end if
-      face1=abs(face1)  
-
-      if (count_neg > 0) then
-         do i=1,count_neg
-            if (zone2 == -1) then
-               zone2=cells[c_zone,neighbors[index_neg+i-1]]
-            else if (zone2 != cells[c_zone,neighbors[index_neg+i-1]]) then
-               zone2=-1
-               return
-            end if
-         end do
-      end if
-
-/*
-   In the case where the two zone types differ, arrange so that the zone-type
-   of |zone1| matches the input |type| (no changes needed for opposite case!).
-*/
-      if (zn_type(zone1) != type) then
-         assert(zn_type(zone2) == type)
-         face1=-face1
-         temp_zone=zone1
-         zone1=zone2
-         zone2=temp_zone
-      end if
-
-      return
-      end
 
 @ subroutine to read inputs from sonnet file.
 @<Functions ...@>=
