@@ -3,6 +3,9 @@
 \Title{geometry}
 
 % $Log$
+% Revision 1.32  1999/03/25 20:51:51  dstotler
+% Added check(s) on filenames_array.
+%
 % Revision 1.31  1998/09/29 13:16:04  dstotler
 % Modified the test in surface_reflect on e1 to go with the change to
 % sources.web. Despite efforts to make the incident v normal to the
@@ -834,7 +837,22 @@ $\vect e_2 = \vect e_3 \times \vect e_1$.
 @#if 0
       if (vc_abs(e1) == zero) then // $\vect v_\parallel = 0$, so choose an arbitrary direction in the surface
 @#else
-      if (vc_abs(e1) <= vc_abs(v)*epsilon) then
+/*
+   This calculation appears particularly prone to roundoff errors in
+   the (frequent) case of normal incidence (at the start of a flight).
+   The original fix of comparing |e1| with |epsilon| has failed 
+   multiple times in simulations by Takenaga. However, these failures
+   were just slightly larger than |epsilon| (less than $10 \%$). 
+   Argue that the roundoff error applies separately to each vector
+   component so that $\sqrt{3} \epsilon$ is a more appropriate upper
+   bound for the total error. Have now found one case that exceeds this
+   by about $1 \%$. Use $2 \epsilon$ to allow for a little more slop
+   (this coefficient should not be allowed to grow continuously!).
+   The subsequent assert using
+   $\sqrt{\epsilon}$ will still catch those cases which are
+   not caught by this test, but should be treated with suspicion.
+*/
+      if (vc_abs(e1) <= vc_abs(v)*const(3.)*epsilon) then
 @#endif
          vc_set(e2,one,zero,zero)
          vc_cross(e3,e2,e1)
