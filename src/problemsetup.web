@@ -2,6 +2,14 @@
 \Title{problemsetup}
 
 % $Log$
+% Revision 1.31  1999/04/20 20:11:54  dstotler
+% Copied over most of Randy's changes to 1) fix order of array arguments
+% for equivalents, 2) force ordering of reaction reagents. Add code for
+% species-specific reactions. Replaced setting of products in
+% subr. elastic from rc_product with "reagents" => automatically get
+% isotopes correct. Add new dependent variables for direction-dependent
+% scores of PMI.
+%
 % Revision 1.30  1999/03/25 20:52:16  dstotler
 % Added check(s) on filenames_array.
 %
@@ -700,7 +708,7 @@ also allowing for the isotopically equivalent combinations.
       if (pr_reaction_num > 0) then
          do i=1,pr_reaction_num
             write(stdout,*) pr_reaction(i),', ',trim(rc_name(pr_reaction(i)))
-         end do
+        end do
       end if
       write(stdout,*) 'Reference PMI indices are:'
       do i=1,pr_pmi_num
@@ -748,6 +756,7 @@ also allowing for the isotopically equivalent combinations.
    generic archetype, |generic|, increment the number 
    of equivalents to this archetype, and store the {\em species} index 
    of this test in the |equivalents| array. */
+
       do i=1,pr_test_num
          generic=generics[pr_test(i)]
          num_equiv[generic]++
@@ -759,10 +768,12 @@ also allowing for the isotopically equivalent combinations.
    list (call to |int_lookup|). */
       do i=1,pr_background_num
          generic=generics[pr_background(i)]
+
          if ((num_equiv[generic] == 0) || (int_lookup(pr_background(i),equivalents[1,generic],pr_max_equiv) == 0)) then  
             num_equiv[generic]++
             equivalents[num_equiv[generic],generic]=pr_background(i)
          endif
+
       end do
       
 /* We can only deal with binary collisions currently */
@@ -791,19 +802,25 @@ also allowing for the isotopically equivalent combinations.
    Note: assuming that we do not need code here to deal with 
    species-specific reactions (asserts to follow should catch exceptions).
 */
+
             ts_reagent=0
             do i=1,pr_bkrc_reagent_max
                generic_reagents[i]=0
             end do
+
             do i=1,rc_reagent_num(pr_reaction(j))
+
                generic_reagents[i]=generics[rc_reagent(pr_reaction(j),i)]
                if (pr_test_lookup(equivalents[1,generic_reagents[i]]) != 0) then      
                   ts_reagent=2   // else: is a background reaction (below)
                   bk_reagent=1    
+
                end if
+
             end do
 
 /* Done setting |generic_reagents|; use to assign remaining |pr| arrays */
+
             if (ts_reagent > 0) then
                if (rc_gen(pr_reaction(j)) == rc_generic_no) then
                   test=pr_test_lookup(rc_reagent(pr_reaction(j),ts_reagent))
@@ -1018,6 +1035,8 @@ routine specific for each reaction.
       else if (rc_reaction_type(r)=='dissoc_cramd') then
          call set_prod_dissoc(pr_test_args(ts),sp_args(reagents),rc_args(r))
       else if (rc_reaction_type(r)=='elastic') then
+         call set_prod_elastic(pr_test_args(ts),sp_args(reagents),rc_args(r))
+      else if (rc_reaction_type(r)=='bgk_elastic') then
          call set_prod_elastic(pr_test_args(ts),sp_args(reagents),rc_args(r))
       else
          pr_num_arrangements(ts,pr_rc_num(ts))=0
