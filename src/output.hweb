@@ -3,6 +3,10 @@
 % $Id$
 
 % $Log$
+% Revision 1.7  1999/05/25 13:15:23  dstotler
+% Added output_old_file, output_weight_grp, output_num_flights,
+% output_checkpoint, output_random_seed.
+%
 % Revision 1.6  1999/03/25 20:46:41  dstotler
 % Move in attribute descriptions from classes.web file.
 %
@@ -49,7 +53,7 @@ complete. Hence, we have collected them separately here.
 @m ou_coupling_energy 5           // Rate of background energy exchange
 @m ou_coupling_max 5
 
-@m ou_back_max 2                  // In lieu of pointer for |pr_background_num|
+@m ou_back_max 5                  // In lieu of pointer for |pr_background_num|
 
 @m out_index_5(ind,t) ind[1]+tally_tab_index[t][1]*(ind[2]+tally_tab_index[t][2]*(ind[3]+tally_tab_index[t][3]*(ind[4]+tally_tab_index[t][4]*ind[5])))
 
