@@ -2,6 +2,11 @@
 \Title{flight}
 
 % $Log$
+% Revision 1.37  1999/05/25 13:35:40  dstotler
+% Explicitly zero stat_wt_frag at beginning of do_flights. Move
+% call to stat_wt_balance to Merge_results section in flighttest
+% so that slaves need to go through it only at the end.
+%
 % Revision 1.36  1999/04/20 20:05:13  dstotler
 % Alter checks on sector_type_pointer to compare with int_undef &
 % int_unused instead of 0. Modify handling of score_diagnostics to get
@@ -152,6 +157,7 @@
 
 @m MANDREKAS 0
 @m EIR_REC_BENCH 0
+@m WMIN_PMI const(1.,4)
 
 @I macros.hweb
 @I zone.hweb
@@ -358,11 +364,25 @@ loop: continue                  // Still in same zone
 
       done=pt_track(tmax,t,fl_current(x))
 
+@#if 0
       if (ionize_rate > epsilon) then
          t_fac=(one-exp(-ionize_rate*t))/ionize_rate
       else
          t_fac=t
       end if   
+@#else
+/*
+   The use of the additional expansion term here makes the code more
+   robust to precision differences across platforms.
+*/
+      if (ionize_rate*t > sqrt(epsilon)) then
+         t_fac=(one-exp(-ionize_rate*t))/ionize_rate
+      else if (ionize_rate > epsilon) then
+         t_fac=t*(one-half*ionize_rate*t)
+      else
+         t_fac=t
+      end if   
+@#endif
          
       call score_test(tl_est_track,t_fac,pt_args(fl_current(x)),estimator_factors)
 
@@ -521,6 +541,7 @@ plasma-material interactions and scoring at ``diagnostic'' surfaces.
    Score diagnostic sectors, including those without an associated
    PMI (|nprod| = 0). Copy test-products onto current stack.
 */
+@#if 0
       do i=0,nprod
          if (pt_test(prod[i]) > 0 && pt_w(prod[i]) > zero) then
             call score_diagnostics(pt_args(prod[i]),estimator_factors)
@@ -530,6 +551,15 @@ plasma-material interactions and scoring at ``diagnostic'' surfaces.
             end if
          end if
       end do
+@#else
+      call score_diagnostics(nprod,pt_args(prod[0]),estimator_factors)
+      do i=1,nprod
+         if (pt_test(prod[i]) > 0 && pt_w(prod[i]) > zero) then
+            fl_pointer(x)++
+            pt_copy(prod[i],fl_current(x))
+         end if
+      end do
+@#endif
 
       return
       end
@@ -552,9 +582,9 @@ plasma-material interactions and scoring at ``diagnostic'' surfaces.
       pt_decl(prod[0:pm_product_max])      // Output
       rn_decl(x)                           // Input/output
 
-      integer i                           // Local
+      integer i,imin                       // Local
       real yield[0:pr_pmi_max],independent_parameters[pf_max_indep_params]
-      real cos_angle,sum,rnd
+      real cos_angle,sum,rnd,sum_refl
 
       pr_pmi_decl(ts_pmi)
       pr_pmi_decl(default_pmi)
@@ -587,6 +617,7 @@ plasma-material interactions and scoring at ``diagnostic'' surfaces.
 @#endif 
       yield[0]=one-mat_recyc_coef // This is the absorbed fraction
       sum=yield[0]
+      sum_refl=zero
       default_pmi=0
       assert(pr_pm_case_num(pt_test(prod[0])) > 0)
       do ts_pmi=1,pr_pm_case_num(pt_test(prod[0]))
@@ -605,7 +636,8 @@ plasma-material interactions and scoring at ``diagnostic'' surfaces.
          else
             yield[ts_pmi]=zero
          end if
-         sum=sum+yield[ts_pmi]
+         sum+=yield[ts_pmi]
+         sum_refl+=yield[ts_pmi] // W/o default or absorption.
       end do
 
       if (default_pmi > 0 && sum < one) yield[default_pmi]=one-sum
@@ -627,6 +659,7 @@ plasma-material interactions and scoring at ``diagnostic'' surfaces.
       rnd=rnd*max(sum,one)      // region from sum to ``one'' is default
 @#endif
 
+@#if 0
       sum=zero
       do i=0,pr_pm_case_num(pt_test(prod[0]))  // Includes abs. term
          sum=sum+yield[i]
@@ -644,11 +677,24 @@ break1:     continue
          assert(yield[0] > zero)      // Be sure absorption is nonzero.
          nprod=0
       end if
-@#if 0
-// Alternate approach using suppressed absorption, as in EIRENE
-// NOTE: have modified this code without testing it!!!
+@#else
+/*
+   With |WMIN_PMI| $< 1$ (e.g., 1.e-4), this code will carry out suppressed
+   absorption similar to that used in EIRENE. If |WMIN_PMI| $> 1$, the code
+   will effectively be the same as the original code.
+*/
       sum=zero
-      do i=1,pr_pm_case_num(pt_test(prod[0]))  
+/*
+   First option skips suppressed absorption for cases with small
+   weight or in which reduction factor would lead to zero or
+   negative weight.
+*/
+      if (pt_w(prod[0]) < WMIN_PMI || (sum_refl+yield[0] >= one)) then 
+	imin=0
+      else	
+        imin=1
+      end if
+      do i=imin,pr_pm_case_num(pt_test(prod[0]))  
          sum=sum+yield[i]
          if (sum >= rnd) then
             ts_pmi=i
@@ -656,15 +702,20 @@ break1:     continue
          end if
       end do
       ts_pmi=default_pmi
-      assert(sum < one)
+      assert(sum < one)     // This should apply only for |imin| = 1 case
 break1:     continue
-      call pick_pmi(pr_pmi_args(ts_pmi),independent_parameters,
-     $              nprod,pt_args(prod[0]),rn_args(x))
-      if (yield[0] > zero) then
-         do i=1,nprod
-            pt_w(prod[i])*=one-yield[0]/(one-sum)
-         end do
-         assert(pt_w(prod[i]) > const(1.,-4))
+      if (ts_pmi > 0) then      // 
+         call pick_pmi(pr_pmi_args(ts_pmi),independent_parameters,
+     $        nprod,pt_args(prod[0]),rn_args(x))
+         if (ts_pmi == default_pmi && yield[0] > zero && imin == 1) then
+            do i=1,nprod
+               pt_w(prod[i])*=one-yield[0]/(one-sum_refl)
+               assert(pt_w(prod[i]) > const(1.,-1)*WMIN_PMI)
+            end do
+         end if
+      else                 // Absorption below min. weight
+         assert(yield[0] > zero)      // Be sure absorption is nonzero.
+         nprod=0
       end if
 @#endif
       return
