@@ -2,6 +2,10 @@
 \Title{sourcetest}
 
 % $Log$
+% Revision 1.7  1999/05/25 13:43:15  dstotler
+% Copy lines for setting so_direct_delta from flighttest.web.
+% Note: was before not properly initializing seed. Doing sonow from so_seed_string. Added advances and rn_init's for seeds so segment test gets same results as main code.
+%
 % Revision 1.6  1998/12/22 16:49:31  dstotler
 % Add averages to bottom of segment test.
 %
@@ -29,9 +33,208 @@
 % the same run information as flighttest in order to work.
 %
 
-@* Test source sampling routines.
+@* Test source sampling routines. 
 
 \ID{$Id$}
+
+This program consists of two 
+primary pieces:
+\begin{enumerate}
+  \item Test of the sampling of the source segments within a group 
+(called the ``segment test''),
+  \item Test of the sampling of particles from a given source segment
+(indicated below by ``velocity test'').
+\end{enumerate}
+
+|sourcetest| can only be after the problem and background netCDF files have 
+been generated. Only the sources specified in those files can be tested.
+
+\section*{Segment Test}
+
+The objective of the segment test is to verify that the distribution 
+of sampled flights corresponds to the input current distribution
+(i.e., as specified by the input |source_current| array). This test
+is carried out on only source group at a time. The code asks the user
+for that source group number as well as the number of samples to be
+used in the test:
+\begin{verbatim}
+ Enter index for a source group, 1 to   2 And number of samples
+\end{verbatim}
+The users response should be a pair of integers, with the first being
+between the indicated limits (the upper bound being the number
+of source groups in the problem, |so_grps|). For the second, any
+number larger than 1 is valid. A useful number would be one comparable
+to the number of flights expected to be used for that group in the
+run of DEGAS 2.
+
+The output from |sourcetest| is written to a file in the run directory called 
+\verb+sourcetest.out+. 
+
+The first section describes the results of the segment test. For example,
+\begin{verbatim}
+    For source group =   1
+   Seg  Ptr    Weight      Rel.Wt.   Rel.Curr.
+    1   234  0.0000E+00  0.0000E+00  2.9232E-02
+    2   233  5.0000E+00  5.0000E-02  2.7951E-02
+    3   232  4.0000E+00  4.0000E-02  2.6836E-02
+\end{verbatim}
+\vdots
+\begin{verbatim}
+   30   205  6.0000E+00  6.0000E-02  4.3854E-02
+   31   204  5.0000E+00  5.0000E-02  4.5339E-02
+   32   203  5.0000E+00  5.0000E-02  4.8014E-02
+  Min. Prob.  Num. Points    Chi Sqd./Num.Pts.    Prob.
+   1.0E-02          32            0.988628      0.484895
+\end{verbatim}
+
+The first line identifies the source group. The columns are:
+\begin{description}
+  \item[Seg] The source segment number. This will just be an enumeration
+of the segments in the group.
+  \item[Ptr] A pointer from each segment to its corresponding geometry
+element. For a surface source, the pointer provides a sector number.
+For a volume source, it corresponds to a zone number.
+  \item[Weight] The total weight sampled from each segment during the
+test. If the relative weight (|source_segment_rel_wt|) is 1, this is
+just the number of flights sampled.
+  \item[Rel.Wt.] Is the sampled weight divided by the total weight
+(the number of samples).
+  \item[Rel.Curr.] Is the current on each segment (|source_current|) divided
+by the total source current for the group (|so_tot_curr|).
+\end{description}
+
+If the sampling routines are working correctly, the \verb+Rel.Wt.+ column
+will smoothly approach the \verb+Rel.Curr.+ column as the number of samples
+approaches infinity. The code attempts to quantify this agreement by
+evaluating a $\chi^{2}$ expression (e.g., see Bevington, {\em Data Reduction
+and Error Analysis for the Physical Sciences}),
+\begin{equation}
+\chi^{2} = \sum_{i=1}^{N_{\rm seg}} 
+\frac{(w_{i} - w_{\rm tot} p_{i})^{2}}{w_{\rm tot} p_{i}},
+\end{equation}
+where $N_{\rm seg}$ is the number of source segments, $w_{i}$ is the
+weight sampled on the $i$th segment (\verb+Weight+ column), 
+$w_{\rm tot}$ is the total weight
+sampled (equals the number of samples), and $p_{i}$ is the relative current
+(column \verb+Rel.Curr.+) for the segment. The denominator represents the
+uncertainty in the sample for the $i$th segment (the variance). Since this
+process represents the random sampling of a finite number of items, the
+results should have a Poisson distribution and the variance should equal
+the mean, $w_{\rm tot} p_{i}$. The code actually prints out the 
+reduced $\chi^{2}_{\nu} \equiv \chi^{2} / N_{\rm seg}$. The probability
+distribution of $\chi^{2}_{\nu}$, $P(\chi^{2} \mid \nu)$ is given by
+\begin{equation}
+P(\chi^{2} \mid \nu) = 1 - {\cal P}\left( \frac{\nu}{2}, \frac{\chi^{2}}{2}
+ \right),
+\end{equation}
+where 
+\begin{equation}
+{\cal P}(a,x) \equiv \frac{1}{\Gamma(a)} \int_{0}^{x} e^{-t} t^{a-1} \: dt,
+\end{equation}
+is the incomplete gamma function, and $\Gamma$ is the gamma function. This
+represents the probability that a random set of data with the same number of
+points would give a larger value of $\chi^{2}$. Note that a 
+$\chi^{2}_{\nu} = 1$ corresponds to
+a probability of 0.5. The probability is usually
+going to either be roughly 0.5, indicating a good sampling, or much
+smaller, indicating a poor sampling.
+If $\chi^{2}_{\nu}$ is significantly larger than 1, say, $> 1.5$, or if
+the resulting probability is very small, the sampling process should be
+examined more carefully. 
+
+Additional machinery has been added to |sourcetest| to aid in evaluating
+the sampling of recombination sources. Because the code automatically
+assumes that every plasma zone is a source, no matter how great, the
+range in source currents can be many orders of magnitude. The result
+is that any reasonable sample size will still leave a significant number
+of segments unsampled. These unsampled, physically irrelevant, segments 
+can dominate the value of $\chi^{2}_{\nu}$. To better evaluate the sampling,
+several $\chi^{2}_{\nu}$ are computed assuming different minimum $p_{i}$'s.
+For example, for a minimum $p_{i} = 10^{-4}$, a $\chi^{2}_{\nu}$ is computed
+based on only those segments having $p_{i} \geq 10^{-4}$; the number
+of such segments is given as well. The resulting values and probabilities
+can be interpreted in the same way, but the user's attention should be
+focussed on the higher values for the minimum probability. These
+represent the zones which will be the physically significant sources in
+the problem.
+
+The above discussion assumes random sampling. DEGAS 2 also has a ``direct
+sampling'' option (see |sources.hweb|) which yields an error scaling
+like $1/w_{\rm tot}$ rather than $1/\sqrt{w_{\rm tot}}$. The result will
+be small values of $\chi^{2}_{\nu}$, decreasing steadily with increasing
+$w_{\rm tot}$. The probabilities in this case quickly reach 1.
+
+\section*{Velocity Test}
+
+The purpose of this part of |sourcetest| is to check the velocity 
+distribution of the neutrals generated by this source. 
+Note that there is no on-screen feedback following the segment
+test, except in the case of code failure. Instead, the user 
+is immediately presented with the velocity test. A choice for
+the source group to be examined is requested:
+\begin{verbatim}
+ Segment test: enter source group, 1 to   2
+\end{verbatim}
+The user is asked to choose a particular segment 
+(sector or zone,
+depending on the type of source) of this group and to enter the
+number of samples:
+\begin{verbatim}
+ Enter segment number, 1 to   32, and number of samples
+\end{verbatim}
+
+Following the segment test output in \verb+sourcetest.out+, the code
+will write the output for the velocity test. In this case, {\em there
+will be one line per sample}, so be careful when specifying the
+number of samples!
+
+The first line of this section output section echoes the input information
+and provides a pointer to the corresponding geometry element, a sector
+number for surface sources, zone number for volume sources:
+\begin{verbatim}
+ For source group   1, segment   25, which points to geometry element   210
+\end{verbatim}
+
+This is followed by the data table:
+\begin{verbatim}
+    i      x            y            z            vx           vy           vz         energy         fr         cos_th       vpar1       vpar2
+    1  1.7653E-02   0.0000E+00   1.0000E+00   0.0000E+00   0.0000E+00   2.5605E+04   6.8423E+00   7.3276E-01  -1.0000E+00   0.0000E+00   0.0000E+00
+    2  1.7529E-02   0.0000E+00   1.0000E+00   0.0000E+00   0.0000E+00   2.5605E+04   6.8423E+00   6.7475E-01  -1.0000E+00   0.0000E+00   0.0000E+00
+    3  1.6929E-02   0.0000E+00   1.0000E+00   0.0000E+00   0.0000E+00   2.5605E+04   6.8423E+00   3.9249E-01  -1.0000E+00   0.0000E+00   0.0000E+00
+\end{verbatim}
+\vdots
+
+Where
+\begin{description}
+  \item[i] Is just a label for each individual sample.
+  \item[x,y,z] Are the coordinates in physical space. These should lie within
+the bounds of the chosen sector or zone.
+  \item[vx,vy,vz] Are the components of the velocity. Note that in some
+cases these can be quite simple. For example, the usual assumption for
+a plate source is normal incidence. I.e., this initial vector will be
+normal to the sector.
+  \item[energy] The sampled energy. In some cases, such as the EIRENE
+benchmark examples, this may be constant.
+  \item[fr] This and subsequent parameters are currently for surface sources 
+only. They will be set to zero for volume sources.
+This is the fractional distance of
+the sample from the beginning of the sector; should be between 0 and 1.
+The distribution of this quantity can be plotted to verify the spatial
+sampling scheme.
+  \item[cos\_th] Cosine of the angle of incidence relative to the surface
+normal. For the usual plate source, this will be -1, with the minus sign
+indicating that the flight is directed towards the surface.
+  \item[vpar1] Component of the sampled velocity parallel to the the line
+formed by the endpoints of the sector (in |sector_points|).
+  \item[vpar2] Second parallel component of the sampled velocity, perpendicular
+to the endpoints of the sector.
+\end{description}
+
+At the end of the file, averages of these quantities are given. These can
+be used as a quick check of the sampled positions and velocities. However,
+testing of new source routines should include plotting the distributions
+of these velocities and computing moments higher than the mean (e.g.,
+the variance).
 
 @m FILE 'sourcetest.web'
 
@@ -60,7 +263,7 @@
       implicit_none_f90
 
       call readfilenames
-      call degas_init
+      call init_sourcetest
       call do_src_tests
 
       stop
@@ -94,6 +297,9 @@
       integer num_points(max_num_chis)
       integer length,p,b,e
       character*LINELEN line
+
+      external gammq                    // External
+      real gammq
 
       rn_seed_decl(seed)
       rn_seed_decl(temp_seed)
@@ -156,8 +362,11 @@ loop1: continue
       length=parse_string(line(:length))
       p=0
       assert(next_token(line,b,e,p))
-      isource=read_integer(line(b:e)) 
-      assert(isource > 0 && isource <= so_grps)
+      isource=read_integer(line(b:e))
+      if (!so_check(isource)) then
+         write(stdout,*) ' Source group ',isource,' is invalid; try again.'
+         go to loop1
+      end if
       assert(next_token(line,b,e,p))
       nsample=read_integer(line(b:e))
 
@@ -229,11 +438,12 @@ loop1: continue
         end do
       end do
 
-      write(diskout,*) ' Min. Prob.  Num. Points    Chi Sqd./Num.Pts.'
+      write(diskout,*) ' Min. Prob.  Num. Points    Chi Sqd./Num.Pts.    Prob.'
       do j=1,num_chis
          assert(num_points[j] > 0)
-         write(diskout,'(2x,1pe8.1,7x,i5,11x,0pf9.6)') min_prob*const(1.,1)**(j-1),num_points[j],
-     $        chi_sqd[j]/num_points[j]
+         write(diskout,'(2x,1pe8.1,7x,i5,11x,0pf9.6,5x,f9.6)') min_prob*const(1.,1)**(j-1),num_points[j],
+     $        chi_sqd[j]/num_points[j],gammq(areal(num_points[j])*half,
+     $        chi_sqd[j]*half)
       end do
 
 break:  continue
@@ -252,7 +462,11 @@ loop2: continue
       p=0
       assert(next_token(line,b,e,p))
       isource=read_integer(line(b:e)) 
-      assert(isource > 0 && isource <= so_grps)
+      if (!so_check(isource)) then
+         write(stdout,*) ' Source group ',isource,' is invalid; try again.'
+         go to loop2
+      end if
+loop3: continue
       write(stdout,*) 'Enter segment number, 1 to ',so_nseg(isource),
      $     ', and number of samples'
 
@@ -261,8 +475,11 @@ loop2: continue
       length=parse_string(line(:length))
       p=0
       assert(next_token(line,b,e,p))
-      nseg=read_integer(line(b:e)) 
-      assert(nseg > 0 && nseg <= so_nseg(isource))
+      nseg=read_integer(line(b:e))
+      if (nseg <= 0 || nseg > so_nseg(isource)) then
+         write(stdout,*) ' Segment ',nseg,' is invalid; try again.'
+         go to loop3
+      end if
       assert(next_token(line,b,e,p))
       nsample=read_integer(line(b:e))
 
@@ -366,5 +583,215 @@ eof: continue
 
       return
       end
+
+@ Incomplete gamma function. Returns the incomplete gamma function
+\begin{equation}
+Q(a,x) \equiv \frac{1}{\Gamma(a)} \int^{\infty}_{x} e^{-x} t^{a-1} \: dt,
+\end{equation}
+for $a > 0$. Taken from {\em Numerical Recipes} by W. H. Press et al. 
+(Cambridge Press, New York, 1986).
+
+@<Functions...@>=
+      function gammq(a,x)
+
+      implicit_none_f77
+      implicit_none_f90
+
+      real gammq                     // Function
+
+      real a,x                       // Input
+
+      real gamser,gln,gammcf         // Local
+
+      assert(x >= 0 && a > 0)
+      if (x < a+one) then
+         call gser(a,x,gamser,gln)     // Use series representation
+         gammq=one-gamser
+      else
+         call gcf(a,x,gammcf,gln)      // Use continued fraction
+         gammq=gammcf
+      end if
+
+      return
+      end
+
+@ Series representation of the incomplete gamma function. Returns the
+incomplete gamma function $P(a,x)$ evaluated by its series representation
+as |gamser|. Also returns $\ln \Gamma (a)$ as |gln|. Taken from {\em Numerical 
+Recipes} by W. H. Press et al. (Cambridge Press, New York, 1986).
+
+@m itmax 500
+@m eps const(3.,-7)
+
+@<Functions...@>=
+      subroutine gser(a,x,gamser,gln)
+
+      implicit_none_f77
+      implicit_none_f90
+
+      real a,x                        // Input
+      real gamser,gln                 // Output
+
+      integer n                       // Local
+      real ap,sum,del
+
+      external gammln                 // External
+      real gammln
+
+      gln=gammln(a)
+      if (x <= zero) then
+         assert(x == zero)
+         gamser=zero
+         return
+      end if
+      ap=a
+      sum=one/a
+      del=sum
+      do n=1,itmax
+         ap+=one
+         del*=x/ap
+         sum+=del
+         if (abs(del) < abs(sum)*eps) go to break
+      end do
+      assert("a too large, itmax too small")
+break: continue
+      gamser=sum*exp(-x+a*log(x)-gln)
+
+      return
+      end
+
+@ Continued fraction representation of the incomplete gamma function. Returns
+the incomplete gamma function $Q(a,x)$ evaluated by its continued fraction
+representation as |gammcf|. Also returns $\ln \Gamma (a)$ as |gln|. Taken from
+{\em Numerical Recipes} by W. H. Press et al. (Cambridge Press, New York, 
+1986).
+
+@<Functions...@>=
+      subroutine gcf(a,x,gammcf,gln)
+
+      implicit_none_f77
+      implicit_none_f90
+
+      real a,x                        // Input
+      real gammcf,gln                 // Output
+
+      integer n                       // Local
+      real a0,a1,b0,b1,fac,an,ana,anf,gold,g
+
+      external gammln                 // External
+      real gammln
+
+      gln=gammln(a)
+/*
+   This is the previous value, tested against for convergence.
+*/
+      gold=zero
+/*
+   Setting the $A$'s and $B$'s of Eq. (5.2.4) in {\em Numerical Recipes} for
+   evaluating the continued fraction.
+*/
+      a0=one
+      a1=x
+      b0=zero
+      b1=one
+/*
+   |fac| is the renormalization factor for preventing overflow of the partial
+   numerators and denominators.
+*/
+      fac=one
+      do n=1,itmax
+         an=areal(n)
+         ana=an-a
+         a0=(a1+a0*ana)*fac    // One step of the recurrence (5.2.5)
+         b0=(b1+b0*ana)*fac
+         anf=an*fac
+         a1=x*a0+anf*a1        // The next step of the recurrence (5.2.5)
+         b1=x*b0+anf*b1
+         if (a1 != zero) then
+            fac=one/a1                             // Renormalize
+            g=b1*fac                               // New value of answer
+            if ((abs(g-gold)/g) < eps) go to break  // Is converged.
+            gold=g                                 // Not converged, try again
+         end if
+      end do
+      assert("a too large, itmax too small")
+break: continue
+      gammcf=g*exp(-x+a*log(x)-gln)
+
+      return
+      end
+
+@ Log of the gamma function. Returns the value of $\ln Gamma (x)$ for $x > 0$.
+Full accuracy is obtained for $x > 1$. For $x < 1$, the reflection formula
+is used. This routine is taken from {\em Numerical Recipes} by W. H. Press 
+et al. (Cambridge Press, New York, 1986).
+
+@<Functions...@>=
+      function gammln(xx)
+
+      implicit_none_f77
+      implicit_none_f90
+
+      real gammln                   // Function
+
+      real xx                       // Input
+
+      integer j,smallx              // Local
+      real stp,x,tmp,ser
+      real cof(6)
+
+      cof(1)=const(76.18009173)
+      cof(2)=const(-86.50532033)
+      cof(3)=const(24.01409822)
+      cof(4)=const(-1.231739516)
+      cof(5)=const(0.120858003,-2)
+      cof(6)=const(-0.536382,-5)
+
+      stp=const(2.50662827465)
+
+      assert(xx > zero)
+      if (xx < one) then
+         smallx=TRUE     // To use reflection formula Eq. (6.1.4)
+         x=one-xx
+      else
+         smallx=FALSE
+         x=xx-one
+      end if
+      tmp=x+const(5.5)
+      tmp=(x+half)*log(tmp)-tmp
+
+      ser=one
+      do j=1,6
+        x+=one
+        ser+=cof(j)/x
+      end do
+
+      gammln=tmp+log(stp*ser)
+      if (smallx == TRUE) gammln=log(PI*(one-xx)/sin(PI*(one-xx)))-gammln
+
+      return
+      end
+
+@* Initialize.
+
+@<Functions...@>=
+      subroutine init_sourcetest
+      implicit_none_f77
+      implicit_none_f90
+      
+      call read_geometry
+      call nc_read_elements
+      call nc_read_species
+      call nc_read_reactions
+      call nc_read_materials
+      call nc_read_pmi
+      call nc_read_problem
+      call nc_read_background
+
+      call read_cramd_data
+      
+      return
+      end
+
 
 @* INDEX.
