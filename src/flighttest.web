@@ -2,6 +2,10 @@
 \Title{flighttest}
 
 % $Log$
+% Revision 1.34  1999/07/22 17:54:26  dstotler
+% Add nfrag to "sending more to slave" message. Added var_reallocb for
+% chkpt arrays to satisfy memory checks in F90's var_free.
+%
 % Revision 1.33  1999/05/25 13:39:08  dstotler
 % Numerous changes to permit checkpointing, restarts, and to
 % improve MPI performance. weight_grp is replaced by
@@ -150,6 +154,8 @@
 
 @m FILE 'flighttest.web'
 
+@m MPI_messages 0
+
 @I macros.hweb
 @I sysdep.hweb
 @I string.hweb
@@ -228,7 +234,7 @@ smaller chunks (of size |nfrag|) to be handled by the slave processors
       real mult,tot_scale_curr,prob,density,dummy,
      $     dens_rsd,pressure,pres_rsd,signal,wavelength
       real sig_det[20]
-      logical init,need_scores,have_pressure
+      logical need_scores,have_pressure
       rn_seed_decl(seed)
       rn_seed_decl(temp_seed)
       rn_decl(temp_rand)
@@ -278,26 +284,14 @@ smaller chunks (of size |nfrag|) to be handled by the slave processors
          end do
 
 /*
-   Need to determine these parameters here since they are used in defining
-   a local array in |fill_coupling_arrays|.
+   Need to set these parameters here since they are used in defining
+   a local array in |fill_coupling_arrays|. Note: separate output variables
+   are needed to permit use in a dimension statement.
 */
-         init=.true.
-         do zone=1,zn_num
-            if (zone_type[zone] == zn_plasma) then
-               if (init) then
-                  output_index_1_min=zone_index[zone][1]
-                  output_index_1_max=zone_index[zone][1]
-                  output_index_2_min=zone_index[zone][2]
-                  output_index_2_max=zone_index[zone][2]
-                  init=.false.
-               else
-                  output_index_1_min=min(output_index_1_min,zone_index[zone][1])
-                  output_index_1_max=max(output_index_1_max,zone_index[zone][1])
-                  output_index_2_min=min(output_index_2_min,zone_index[zone][2])
-                  output_index_2_max=max(output_index_2_max,zone_index[zone][2])
-               end if
-            end if
-         end do
+         output_index_1_min=zone_index_min[1]
+         output_index_1_max=zone_index_max[1]
+         output_index_2_min=zone_index_min[2]
+         output_index_2_max=zone_index_max[2]
       else if (so_restart == TRUE) then
          assert(output_old_file == TRUE) 
          post_arrays_allocd=TRUE
@@ -396,7 +390,9 @@ smaller chunks (of size |nfrag|) to be handled by the slave processors
             nstart=j*nfrag
             num=min(nfrag,nflights-nstart)
             slave=j+1
+@#if MPI_messages
             write(stderr,*) 'Send initial batch to slave ',slave
+@#endif
             call slave_send_flights(slave,output_num_flights[is]+nstart,num,so_args(is),seed)
             call next_seed(num,seed) // Advance random number seed
          end do
@@ -410,8 +406,10 @@ smaller chunks (of size |nfrag|) to be handled by the slave processors
 @#if MPI
             if (nslaves>0) then
                call slave_receive_flag(slave)
+@#if MPI_messages
                write(stderr,*) 'Slave ',slave,' is done with a batch'
                write(stderr,*) 'Sending ',nfrag,' more to slave ',slave
+@#endif
                send_data=FALSE
                call slave_send_flag(slave,send_data)
                call slave_send_flights(slave,output_num_flights[is]+nstart,num,so_args(is),seed)
@@ -439,7 +437,9 @@ smaller chunks (of size |nfrag|) to be handled by the slave processors
             send_data=TRUE
             call slave_send_flag(slave,send_data)
             call slave_receive_flights(slave)
+@#if MPI_messages
             write(stderr,*) 'Received batch back from slave ',slave
+@#endif
             @<Merge results@>
          end do
 @#endif
@@ -1108,7 +1108,7 @@ we don't set the dimensions until just before the call.
          do is=1,so_grps
             first_back=0
             do back=1,pr_background_num
-               index_parameters[tl_index_back]=back
+               index_parameters[tl_index_problem_sp]=pr_problem_sp_back(back)
                do iy=iy_1,iy_n
                   do ix=ix_1,ix_n
                      if (zn_check(zone_map(ix,iy))) then
