@@ -2,6 +2,15 @@
 \Title{matchout}
 
 % $Log$
+% Revision 1.4  1999/05/25 13:27:45  dstotler
+% Add assert on output_old_file since absence of output file
+% no longer generates a fatal error. Replace reads of .nc
+% files with call to degas_init, plus separate call to
+% nc_read_output. Use variances directly from "post" arrays
+% since they are now stored there as well.
+% Keep comparison of output_grp since it lacks just scaling
+% factors, but now need to use variance from out_post_grp.
+%
 % Revision 1.3  1999/02/08 18:19:44  dstotler
 % Change order of two common declarations for ALPHA.
 %
@@ -12,10 +21,101 @@
 % Initial version which does just the simplest possible comparison.
 %
 
-@* Read in two output files and compare contents, both absolutely and 
-relative to standard deviations.
+@* Read in two output files and compare contents.
 
 \ID{$Id$}
+
+Is used to compare the current DEGAS 2 output netCDF
+file (as named in \verb+degas2.in+) 
+with another from an equivalent run (all of the arrays must
+be exactly the same size). The path name to the latter file is specified on the
+input line. The most frequent use
+of {\tt matchout} is to check that two separate runs have yielded 
+results which are the same to within roundoff error. Because of the size of 
+the ouptut netCDF file, determining this by visually comparing the files 
+is impractical.  The program can also be used to verify, at least
+in a cursory manner, that two runs are in statistical agreement.
+
+The output is broken up into major sections according to the main
+output arrays:
+\begin{description}
+  \item[output\_grp(i)] Contains the results from source group |i| without
+post-processing contributions.
+  \item[output\_all] Is the sum of |output_grp| over source groups.
+  \item[out\_post\_grp(i)] Final results, including post-processing
+contributions, from source group |i|.
+  \item[out\_post\_all] Is the sum of |out_post_grp| over all
+source groups.
+\end{description}
+
+The reason for treating separately the arrays with post-processed data
+is that the impact of post-processing on the relative standard deviation
+is not computed. Hence, critical statistical comparisons must be
+made on results without the post-processing contributions. The comparisons
+{\em with} them are included to provide a secondary check and to verify the
+post-processing routines.
+
+Each major section consists of a loop over all of the tallies in the
+problem. The output for an individual tally should look like:
+\begin{verbatim}
+    ion momentum source vector :
+        largest difference =     13427.334474026
+          at indices (  1919,  4,  1,  1,  1), component   3, itot =   122099
+        largest relative difference =     679.45039474401
+          at indices (  1981,  6,  1,  1,  1), component   1, itot =   134601
+        fraction within 1 sigma =    0.72405107270043
+           "       "    2   "        0.93859115782159
+           "       "    3   "        0.96855728307131
+         fraction binned =    0.31154949396547
+\end{verbatim}
+
+The first line gives the full name of the tally.  The second line
+contains the largest difference, for that tally, between the
+values contained in the current output netCDF file
+and those in the file specified on the 
+command line. The difference is normalized to the value in the
+file specified on the input line (the hope is that it
+does not matter which of the two values is used for normalization).
+
+The next line provides information about the independent
+variables associated with the largest difference. First, the indices of the
+independent variables are given. These will range from 1 to
+the value of |tally_tab_index|. If the tally is a vector, the
+``component'' (1, 2, or 3) is specified. Finally, \verb+itot+
+is the corresponding index in the full array 
+(e.g., |output_all[itot][o_mean]|). 
+
+The next two lines do the same for the largest relative difference.
+The ``relative'' means relative to an effective standard deviation,
+\begin{equation}
+\sigma_{\rm eff} = ( \sigma_{1}^{2} + \sigma_{2}^{2} )^{1/2}.
+\end{equation}
+
+The relative differences are binned to allow an overall estimate of
+the error. Relative differences less than one are counted in the
+``fraction within 1 sigma'' bin and so on. All values for the tally
+are counted equally, except that trivial ones (e.g., both are
+zero) are ignored. The fraction of all (including
+trivial ones)
+of the data values that are binned (including those with relative
+differences greater than three) is given in the last line. If all
+of the binned data values were independent (in reality they are not),
+and the two sets of results were in statistical agreement, the
+binning fractions would be near their ideal values,
+$68 \%$, $95 \%$, and $99.7 \%$. The ``fraction binned'' will
+alert the user to situations where too few values were binned to
+allow a statistical comparison.
+
+In comparing runs which should be numerically identical, the
+largest differences (absolute and relative) should be close to machine
+precision, say, between $10^{-13}$ and $10^{-15}$. If the run is
+carried out on the same platform for both files, differences of
+zero usually result. Accumulated or accentuated roundoff error
+can legitimately lead to differences as large as $10^{-10}$ for
+a single tally or data point (the neutral flux vector tally typically
+results in the greatest differences). 
+Larger or more persistent differences
+should be investigated.
 
 @m FILE 'matchout.web'
 
