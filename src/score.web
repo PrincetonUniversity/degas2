@@ -2,6 +2,11 @@
 \Title{score}
 
 % $Log$
+% Revision 1.11  1999/07/22 17:58:05  dstotler
+% Permit each detector / diagnostic segment to have its own set of
+% bins. This bug was causing overlapping (e.g., opposing) detector
+% views to report the same spectra.
+%
 % Revision 1.10  1999/07/19 19:29:04  karney
 % (1) Remove much dead code in random.web.
 %
@@ -89,6 +94,7 @@
 @I flight.hweb
 @I reaction.hweb
 @I materials.hweb
+@I pmi.hweb
 @I sources.hweb
 @I background.hweb
 @I zone.hweb
@@ -170,7 +176,7 @@
 @ Handle scores at diagnostic sectors.
 
 @<Functions...@>=
-      subroutine score_diagnostics(pt_dummy(p),estimator_factors)
+      subroutine score_diagnostics(nprod,pt_dummy(prod),estimator_factors)
 
       implicit_none_f77
       pr_common                                        // Common
@@ -180,64 +186,59 @@
       
       tl_decls
 
-      pt_decl(p)                                       // Input
+      integer nprod                                    // Input
+      pt_decl(prod[0:pm_product_max])                 
       real estimator_factors[*]                        // Scratch
 
-      integer i,jscore,pr_reac,idiag1,idiag2           // Local
+      integer i,j,jscore,pr_reac,idiag1,idiag2           // Local
       real scoring_data[scoring_data_max]
       logical need_scores
 
       @<Memory allocation interface@>
 
-      need_scores=.false.
-      do i=1,tally_type_num[tl_type_sector]
-         jscore=tally_type_base[tl_type_sector]+i-1
+      do j=0,nprod
+         need_scores=.false.
+         do i=1,tally_type_num[tl_type_sector]
+            jscore=tally_type_base[tl_type_sector]+i-1
 /*
    This assumes that only scores involving |lc_sector| and |lc_sector_next|
    are being updated here. This is as in |handle_diagnostics|.
 */
-         idiag1=sector_type_pointer[lc_sector(pt_loc(p))][sc_diagnostic(tally_geometry_ptr[jscore])]
-         idiag2=sector_type_pointer[lc_sector_next(pt_loc(p))][sc_diagnostic(tally_geometry_ptr[jscore])]
-@#if 0
-         if (sc_diag_check(idiag1,tally_geometry_ptr[jscore]) ||
-     $        sc_diag_check(idiag2,tally_geometry_ptr[jscore])) then
-            estimator_factors[jscore]=pt_w(p)
-            need_scores=.true.
-         else
-            estimator_factors[jscore]=zero
-         end if
-@#endif
+            idiag1=sector_type_pointer[lc_sector(pt_loc(prod[j]))][sc_diagnostic(tally_geometry_ptr[jscore])]
+            idiag2=sector_type_pointer[lc_sector_next(pt_loc(prod[j]))][sc_diagnostic(tally_geometry_ptr[jscore])]
+
 /*
    Disable scores for which direction-dependent dependent variables are 
    going the wrong way for the current pair of sectors (flight is going
    out of |sector| and coming into |sector_next|).
 */
-         if ((sc_diag_check(idiag1,tally_geometry_ptr[jscore]) 
-     $      && !(tally_dep_var[jscore] >= pr_var_mass_in 
-     $          && tally_dep_var[jscore] <= pr_var_mass_in+pr_num_diag_vars-1))
-     $    || (sc_diag_check(idiag2,tally_geometry_ptr[jscore])
-     $      && !(tally_dep_var[jscore] >= pr_var_mass_out 
-     $        && tally_dep_var[jscore] <= pr_var_mass_out+pr_num_diag_vars-1)))
-     $   then
-            estimator_factors[jscore]=pt_w(p)
-            need_scores=.true.
-         else
-            estimator_factors[jscore]=zero
-         end if
-      end do
-
-      if (need_scores) then
-
-         do i=1,scoring_data_max
-            scoring_data[i]=zero
+            if ((sc_diag_check(idiag1,tally_geometry_ptr[jscore]) 
+     $        &&  !(tally_dep_var[jscore] >= pr_var_mass_in 
+     $             && tally_dep_var[jscore] <= pr_var_mass_in+pr_num_diag_vars-1))
+     $     || (sc_diag_check(idiag2,tally_geometry_ptr[jscore])
+     $         && !(tally_dep_var[jscore] >= pr_var_mass_out 
+     $         && tally_dep_var[jscore] <= pr_var_mass_out+pr_num_diag_vars-1)))
+     $      then
+               estimator_factors[jscore]=pt_w(prod[j])
+               need_scores=.true.
+            else
+               estimator_factors[jscore]=zero
+            end if
          end do
 
-         call sector_scoring_data(pt_args(p),scoring_data)
+         if (need_scores) then
 
-         pr_reac=0
-         call add_scores(tl_type_sector,pt_args(p),pr_reaction_args(pr_reac),
-     $        scoring_data,estimator_factors)
-      end if
+            do i=1,scoring_data_max
+               scoring_data[i]=zero
+            end do
+
+            call sector_scoring_data(pt_args(prod[j]),scoring_data)
+
+            pr_reac=0
+            call add_scores(tl_type_sector,pt_args(prod[0]),pr_reaction_args(pr_reac),
+     $           scoring_data,estimator_factors)
+         end if
+      end do  // Over |j|
 
       return
       end
@@ -250,12 +251,14 @@
       implicit_none_f77
       sp_common                                     // Common
       sc_common
+      pr_common
       implicit_none_f90
 
       pt_decl(p)                                    // Input
       real scoring_data[scoring_data_max]           // Output
 
       real cos_angle                                // Local
+      integer psp
 
       external intersection_direction               // External
       real intersection_direction      
@@ -276,17 +279,19 @@
    one or the other set of data. The better plan turned out to be
    to do this in |score_diagnostics|.
 */
-      scoring_data[pr_var_mass_out]=scoring_data[pr_var_mass]
-      scoring_data[pr_var_momentum_out_vector]=sp_m(pt_sp(p))*pt_v(p)[1]
-      scoring_data[pr_var_momentum_out_2]=sp_m(pt_sp(p))*pt_v(p)[2]
-      scoring_data[pr_var_momentum_out_3]=sp_m(pt_sp(p))*pt_v(p)[3]
-      scoring_data[pr_var_energy_out]=scoring_data[pr_var_energy]
+      assert(pr_test_check(pt_test(p)))
+      psp=pr_problem_sp_test(pt_test(p))
+      scoring_data[pr_var_problem_sp_index(pr_var_mass_out,psp)]=scoring_data[pr_var_mass]
+      scoring_data[pr_var_problem_sp_index(pr_var_momentum_out_vector,psp)]=sp_m(pt_sp(p))*pt_v(p)[1]
+      scoring_data[pr_var_problem_sp_index(pr_var_momentum_out_2,psp)]=sp_m(pt_sp(p))*pt_v(p)[2]
+      scoring_data[pr_var_problem_sp_index(pr_var_momentum_out_3,psp)]=sp_m(pt_sp(p))*pt_v(p)[3]
+      scoring_data[pr_var_problem_sp_index(pr_var_energy_out,psp)]=scoring_data[pr_var_energy]
 
-      scoring_data[pr_var_mass_in]=scoring_data[pr_var_mass]
-      scoring_data[pr_var_momentum_in_vector]=sp_m(pt_sp(p))*pt_v(p)[1]
-      scoring_data[pr_var_momentum_in_2]=sp_m(pt_sp(p))*pt_v(p)[2]
-      scoring_data[pr_var_momentum_in_3]=sp_m(pt_sp(p))*pt_v(p)[3]
-      scoring_data[pr_var_energy_in]=scoring_data[pr_var_energy]
+      scoring_data[pr_var_problem_sp_index(pr_var_mass_in,psp)]=scoring_data[pr_var_mass]
+      scoring_data[pr_var_problem_sp_index(pr_var_momentum_in_vector,psp)]=sp_m(pt_sp(p))*pt_v(p)[1]
+      scoring_data[pr_var_problem_sp_index(pr_var_momentum_in_2,psp)]=sp_m(pt_sp(p))*pt_v(p)[2]
+      scoring_data[pr_var_problem_sp_index(pr_var_momentum_in_3,psp)]=sp_m(pt_sp(p))*pt_v(p)[3]
+      scoring_data[pr_var_problem_sp_index(pr_var_energy_in,psp)]=scoring_data[pr_var_energy]
 
       return
       end
@@ -528,6 +533,7 @@ more than one scoring bin. Again, the affected bins are in an array |bins|.
       pr_common
       tl_common
       sc_common
+      zn_common
       implicit_none_f90
       
       tl_decls
@@ -539,8 +545,8 @@ more than one scoring bin. Again, the affected bins are in an array |bins|.
       real scoring_data[scoring_data_max],estimator_factors[*]
 
                                                  // Local
-      integer i,j,k,jscore,back,number_segments,geom_seg_label,geom_seg,
-     $     bin_label,ibin,back_min,back_max
+      integer i,j,k,jscore,problem_sp,number_segments,geom_seg_label,geom_seg,
+     $     bin_label,ibin,problem_sp_min,problem_sp_max
       integer index_parameters[tl_index_unknown:tl_index_max],
      $     segments[max_segments],ind_val[tl_rank_max],
      $     number_bins[max_segments],bins[max_segments][max_bins] 
@@ -560,6 +566,8 @@ more than one scoring bin. Again, the affected bins are in an array |bins|.
       index_parameters[tl_index_sector]=lc_sector(pt_loc(p))
       index_parameters[tl_index_strata]=strata[lc_sector(pt_loc(p))]
       index_parameters[tl_index_strata_segment]=sector_strata_segment[lc_sector(pt_loc(p))]
+      index_parameters[tl_index_zone_ind_1]=zn_index(lc_zone(pt_loc(p)),1)
+      index_parameters[tl_index_zone_ind_2]=zn_index(lc_zone(pt_loc(p)),2)
 
       do i=1,tally_type_num[type]
          jscore=tally_type_base[type]+i-1
@@ -571,22 +579,22 @@ more than one scoring bin. Again, the affected bins are in an array |bins|.
    this could possibly lead to improperly skipped scores!}
 */
          check_data=zero
-         if (tally_dep_var[jscore] >= pr_var_back_mass
-     $        && tally_dep_var[jscore] <= pr_var_back_mass+pr_num_back_vars-1)
+         if (tally_dep_var[jscore] >= pr_var_mass_change
+     $        && tally_dep_var[jscore] <= pr_var_mass_change+pr_num_change_vars-1)
      $        then
-            back_min=1
-            back_max=pr_background_num
-            do back=1,pr_background_num
-               index_parameters[tl_index_back]=back
+            problem_sp_min=1
+            problem_sp_max=pr_background_num+pr_test_num
+            do problem_sp=1,pr_background_num+pr_test_num
+               index_parameters[tl_index_problem_sp]=problem_sp
                do j=1,tally_dep_var_dim[jscore]
                   check_data+=abs(scoring_data[
      $            tl_scoring_index(tally_dep_var[jscore],j,index_parameters)])
                end do
             end do
          else
-            back_min=0
-            back_max=0
-            index_parameters[tl_index_back]=0
+            problem_sp_min=0
+            problem_sp_max=0
+            index_parameters[tl_index_problem_sp]=0
             do j=1,tally_dep_var_dim[jscore]
                check_data+=abs(scoring_data[
      $           tl_scoring_index(tally_dep_var[jscore],j,index_parameters)])
@@ -604,8 +612,8 @@ more than one scoring bin. Again, the affected bins are in an array |bins|.
                index_parameters[geom_seg_label]=segments[geom_seg]
                do ibin=1,number_bins[geom_seg]
                   index_parameters[bin_label]=bins[geom_seg][ibin]
-                  do back=back_min,back_max
-                     index_parameters[tl_index_back]=back
+                  do problem_sp=problem_sp_min,problem_sp_max
+                     index_parameters[tl_index_problem_sp]=problem_sp
                      do k=1,tl_rank_max
                         if (k <= tally_rank[jscore]) then
                            ind_val[k]
@@ -628,7 +636,7 @@ more than one scoring bin. Again, the affected bins are in an array |bins|.
      $                       *estimator_factors[jscore])
 
                      end do 
-                  end do  // |back|
+                  end do  // |problem_sp|
                end do     // |ibin|
             end do        // |geom_seg|
          end if
@@ -758,7 +766,7 @@ wavelength of emissions.
       integer pointer,dep_var
       real scoring_data[scoring_data_max]
 
-      integer number_segments,number_bins,bin_label           // Output
+      integer number_segments,bin_label                       // Output
       integer segments[max_segments],number_bins[max_segments],
      $     bins[max_segments][max_bins]
       real geom_mult[max_segments][max_bins]
@@ -1014,7 +1022,7 @@ bins. The treated variables thus far are energy and angle of incicidence.
       integer pointer,dep_var
       real scoring_data[scoring_data_max]
 
-      integer number_segments,number_bins,bin_label   // Output
+      integer number_segments,bin_label               // Output
       integer segments[max_segments],number_bins[max_segments],
      $     bins[max_segments][max_bins]
       real geom_mult[max_segments][max_bins]
@@ -1284,46 +1292,6 @@ bins. The treated variables thus far are energy and angle of incicidence.
       return
       end
 
-@ Function to extract data from output arrays.
-
-@<Functions...@>=
-      function extract_output_datum(index_parameters,icomp,scores,mom,name)
-
-      implicit_none_f77
-      pr_common                                  // Common
-      tl_common
-      implicit_none_f90
-      
-      tl_decls
-
-      real extract_output_datum                  // Function
-      integer index_parameters[tl_index_max]     // Input
-      integer icomp,mom
-      real scores[0:*][o_mean:o_var]  
-      character*(*) name
-      integer tally_number,i                     // Local
-      integer ind_val[tl_rank_max]
-
-      st_decls
-
-      tally_number=string_lookup(name,tally_name,tl_num)
-      assert(tally_number > 0)
-      assert(icomp <= tally_dep_var_dim[tally_number])
-      
-      do i=1,tl_rank_max
-         if (i <= tally_rank[tally_number]) then
-            ind_val[i]=index_parameters[tally_indep_var[tally_number][i]]-1
-            assert(ind_val[i] >= 0 
-     $           && ind_val[i] < tally_tab_index[tally_number][i])
-         else
-            ind_val[i]=0
-         end if
-      end do
-
-      extract_output_datum=scores[out_array_index(icomp,ind_val,tally_number)][mom]
-
-      return
-      end
 
 
 
