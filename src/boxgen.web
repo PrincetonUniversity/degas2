@@ -2,6 +2,10 @@
 \Title{boxgen}
 
 % $Log$
+% Revision 1.13.2.1  1999/12/21 14:59:28  dstotler
+% Minor changes for compiler, including replacing dummy dimensions in
+% old diff. eq. code with "*".
+%
 % Revision 1.13  1999/07/19 19:28:51  karney
 % (1) Remove much dead code in random.web.
 %
@@ -763,6 +767,7 @@ c
 c
       real den0norm(0:nxtot-1), integ_x(0:nxtot-1)
 c
+      real soln1_int
       external soln1_int, basic_trap_integration
 c
 c..Multiplier on thermal force
