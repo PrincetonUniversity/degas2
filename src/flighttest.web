@@ -2,6 +2,10 @@
 \Title{flighttest}
 
 % $Log$
+% Revision 1.34.4.1  2000/01/22 00:36:00  kanzlr
+% Addition of machinery for BGK neutral-neutral collisions.  Looping 
+% structure added along with convergence tests.
+%
 % Revision 1.34  1999/07/22 17:54:26  dstotler
 % Add nfrag to "sending more to slave" message. Added var_reallocb for
 % chkpt arrays to satisfy memory checks in F90's var_free.
@@ -70,7 +74,8 @@
 % New initializer for random numbers.
 % Kludge to get around NERSC/Sun f90 bugs in sysdep.web (see CHARPOINTERBUG).
 % Minor bug in collide.web (array index was a real).
-% Eliminate some uses of repeated actual args (transform, transform_velocity,% stat_add, next_seed, rand_axc).
+% Eliminate some uses of repeated actual args (transform, transform_velocity,
+% stat_add, next_seed, rand_axc).
 %
 % Revision 1.20  1997/08/19 14:36:38  karney
 % Changes to support compilation under f90.  This involved extensive changes
@@ -79,7 +84,7 @@
 %
 % Revision 1.19  1997/08/07 19:46:20  dstotler
 % Add in normalization of group stats. Explicitly calculate and
-% normalize separate scres and variances for each source group. Switch from
+% normalize separate scores and variances for each source group. Switch from
 % "stat" arrays to those in output.hweb. Insert (temporarily?)
 % post-process scoring and other output.
 %
@@ -210,11 +215,13 @@ smaller chunks (of size |nfrag|) to be handled by the slave processors
       define_varp(chkpt_write,INT,chkpt_ind)
       define_varp(chkpt_nflights,INT,chkpt_ind)
       define_varp(estimator_factors,FLOAT,tally_ind)
+      define_varp(back_pres,FLOAT,background_ind,bk_plasma_ind)
 
       implicit_none_f77
-
       zn_common                                             // Common
+      sp_common
       bk_common
+      rc_common
       so_common
       pr_common
       de_common
@@ -222,9 +229,6 @@ smaller chunks (of size |nfrag|) to be handled by the slave processors
       ou_common
       sa_common
       mp_common
-      rc_common
-      sp_common
-
       implicit_none_f90
 
       integer i,j,is,zone,test,new_dim,pr_reac,jscore,      // Local
@@ -235,7 +239,7 @@ smaller chunks (of size |nfrag|) to be handled by the slave processors
       integer index_parameters[tl_index_max]
 
       integer back,si
-      real mult,tot_scale_curr,prob,density,temperature,
+      real mult,tot_scale_curr,prob,density,temperature,dummy,
      $     dens_rsd,pressure,pres_rsd,signal,wavelength
       real sig_det[20]
       logical init,need_scores,have_pressure
@@ -265,9 +269,11 @@ smaller chunks (of size |nfrag|) to be handled by the slave processors
       declare_varp(chkpt_write)
       declare_varp(chkpt_nflights)
       declare_varp(estimator_factors)
+      declare_varp(back_pres)
 
       logical BGK,need_iteration
       integer iter_count
+      character*1 iter_char      
 
       BGK = .false.
 
@@ -283,13 +289,18 @@ smaller chunks (of size |nfrag|) to be handled by the slave processors
          iter_max = 3			//  Set maximum number of iterations
          cv_dens = 0.05			//  Set convergence criteria for density
          cv_pres = 0.05			//  Set convergence criteria for pressure
+         var_alloc(back_pres)
+         do i=1,bk_num
+            do j=1,zone_type_num[zn_plasma]
+               back_pres[j][i]=real_uninit
+            end do
+         end do
 
       endif
 
       var_alloc(estimator_factors)
 
       assert(ou_back_max >= pr_background_num) // Dimension for a local array
-      var_alloc(output_random_seed)
 
 loop1:continue
 
@@ -300,10 +311,17 @@ loop1:continue
       endif
 
       if (so_restart == FALSE) then
-         var_alloc(output_all)
          var_alloc(output_grp)
          var_alloc(output_weight_grp)
          var_alloc(output_num_flights)
+/*
+   NEED FOR THIS TO BE OUTSIDE BGK LOOP AS WRITTEN. Otherwise, it gets 
+   creamed at each iteration. Need to redesign loop.
+*/
+         if (!BGK || iter_count == 0) then
+            var_alloc(output_random_seed)
+         end if
+
          post_arrays_allocd=FALSE      // Allocate |out_post_grp|, etc. later
 
 @#if 0
@@ -328,7 +346,7 @@ loop1:continue
             do i=0,tally_size-1
                output_grp[is][i][o_mean]=zero
                output_grp[is][i][o_var]=zero
-             end do
+            end do
          end do
 
 /*
@@ -370,7 +388,6 @@ loop1:continue
       else
          assert('Illegal value of so_sampling' == ' ')
       end if
-
 @#if MPI
       mpi_broadcast(so_direct_delta) 
 @#endif
@@ -425,7 +442,6 @@ loop1:continue
       var_reallocb(chkpt_nflights)
 
       is=0
-
       do icp=1,num_chkpts
          nflights=chkpt_nflights[icp]
 
@@ -446,9 +462,6 @@ loop1:continue
          nslaves=mpi_size-1
 @#else
          nslaves=0
-c         nfrag=nflights-1  // My temporary patch (until fix wts. in |stat_acc|
-c         nparcel=1       // Ditto.
-         
 @#endif
 
 @#if MPI
@@ -481,7 +494,6 @@ c         nparcel=1       // Ditto.
             end if
             
 @#else
-
             call do_flights(output_num_flights[is]+nstart,num,so_args(is),seed,estimator_factors) 
 /*
    Moved this inside the !MPI block since slaves send back data only at the
@@ -492,7 +504,6 @@ c         nparcel=1       // Ditto.
             
 
             call next_seed(num,seed) // Advance the seed
-
          end do
          
 @#if MPI
@@ -528,7 +539,6 @@ c         nparcel=1       // Ditto.
             do isp=1,so_grps
                rn_seed_copy(seed,output_random_seed[isp])
             end do
-
          end if
 
          if (post_arrays_allocd == FALSE 
@@ -593,10 +603,7 @@ c         nparcel=1       // Ditto.
 /*
    Post-process scores
 */
-      var_alloc(out_post_all)
-
-      stat_comp_flt=FALSE.               // To get diagonal pointers
-
+      stat_comp_flt=FALSE               // To get diagonal pointers
       if (stat_dim_flt < tally_size) then
          var_realloc(stat_flt,stat_dim_flt-1,tally_size-1)
          stat_dim_flt=tally_size
@@ -626,20 +633,16 @@ c         nparcel=1       // Ditto.
 
          do i=0,tally_size-1
             stat_flt[i][o_mean]=out_post_grp[is][i][o_mean]
-            stat_flt[i][o_var]=out_post_grp[is][i][o_var]
          end do
          assert(stat_size_flt==tally_size)
          call final_conversions(tl_cv_post,stat_flt)
             
          if (need_scores) then
-// temporary kludge to allow call to back_scores, but not test_scores
-// (have turned off flux vector tallies)
             call post_process_test_scores(is,stat_flt,estimator_factors)
             if (so_type(is) == so_recomb) then      
                call post_process_back_scores(is,stat_flt,estimator_factors)
             end if
-        end if
-
+         end if
 
          call final_conversions(tl_cv_output,stat_flt)
 
@@ -669,7 +672,14 @@ c         nparcel=1       // Ditto.
 /* 
    Example text output file
 */
-
+      if (!BGK) then
+         open(unit=diskout,file='density.out',status='unknown')
+      else
+         assert(iter_count < 10)
+         write(iter_char,'(i1)') iter_count
+         open(unit=diskout,file='density'\/iter_char\/'.out',status='unknown')
+      end if
+      dummy=zero
       if (string_lookup('neutral pressure',tally_name,tl_num) > 0) then
          have_pressure=.true.
       else
@@ -693,25 +703,31 @@ c         nparcel=1       // Ditto.
          endif
 
          do zone=1,zn_num
-
             if (zone_type[zone] == zn_plasma) then
 
-               temperature=0.
                index_parameters[tl_index_zone]=zone
  
                density=extract_output_datum(index_parameters,1,
      $              out_post_all,o_mean,'neutral density')
                dens_rsd=extract_output_datum(index_parameters,1,
      $              output_all,o_var,'neutral density')
-
-               pressure=extract_output_datum(index_parameters,1,
-     $              out_post_all,o_mean,'neutral pressure')
-               pres_rsd=extract_output_datum(index_parameters,1,
-     $              output_all,o_var,'neutral pressure')
-
-               if(density .ne. zero) then
-                 temperature=pressure/density
+               if (have_pressure) then
+                  pressure=extract_output_datum(index_parameters,1,
+     $                 out_post_all,o_mean,'neutral pressure')
+                  pres_rsd=extract_output_datum(index_parameters,1,
+     $                 output_all,o_var,'neutral pressure')
+               else
+                  pressure=zero
+                  pres_rsd=zero
+               end if
+               if (density != zero) then
+                  temperature=pressure/density
+               else
+                  temperature=zero
                endif
+               write(diskout,'(2i6,1p,6e13.4)') zone_index[zone][1],
+     $              zone_index[zone][2],density,dens_rsd,pressure,pres_rsd,
+     $              dummy,dummy
 
 /*   Calls to rewrite BGK background   */
 
@@ -729,17 +745,24 @@ c         nparcel=1       // Ditto.
                               tot_dn += delta_n
                            endif
  
+@#if 0
                            if(background_pres[back,zone] != zero) then
+@#endif
+                           if (back_pres[back,zone] != zero) then
+                              assert(back_pres[back,zone] != real_uninit)
                               total_P += pressure
-                              delta_P = dabs(background_pres[back,zone]-pressure)
+                              delta_P = dabs(back_pres[back,zone]-pressure)
                               tot_dP += delta_P
                            endif 
 
 /*   Reset Background Conditions to new iterated values   */
 
                            background_n[back,zone]=density
-                           background_pres[back,zone]=pressure
+                           back_pres[back,zone]=pressure
                            background_temp[back,zone]=temperature
+/*
+   IS |vel_test| EVER SET TO ANYTHING? DOESN'T APPEAR SO!
+*/
                            vc_set(background_v[back,zone],vel_test[1],vel_test[2],
      $                        vel_test[3])
 
@@ -754,7 +777,7 @@ c         nparcel=1       // Ditto.
                         if ( pr_test(test) == pr_background(back) ) then   //  is Test also Back
 
                            background_n[back,zone]=density
-                           background_pres[back,zone]=pressure 
+                           back_pres[back,zone]=pressure 
                            background_temp[back,zone]=temperature
                            vc_set(background_v[back,zone],vel_test[1],vel_test[2],
      $                        vel_test[3])
@@ -784,6 +807,8 @@ c         nparcel=1       // Ditto.
          endif
 
       end do              // Over Test Species
+
+      close(unit=diskout)
 
       if ( BGK )   then
 
