@@ -2,6 +2,9 @@
 \Title{reaction}
 
 % $Log$
+% Revision 1.20  1998/12/22 16:48:23  dstotler
+% Updated argument lists to collision routines.
+%
 % Revision 1.19  1998/01/14 20:59:51  dstotler
 % Replace background_sources with coupling_scores. Added checks on test,
 % background, and reaction to make sure they are in the problem.
@@ -78,9 +81,124 @@
 %
 
 
-@* A test program for the reaction routines.
+@* A test program for the reaction routines. 
 
 \ID{$Id$}
+
+This program can be run at
+any stage after |problemsetup|; the problem netCDF file is read. The geometry
+and background files are not needed.
+
+The user is asked to specify the symbols of the test and background 
+reagents for the reaction to be examined, as well as the symbol for the
+reaction itself. All three must appear in the current problem input file.
+\begin{verbatim}
+ Enter symbols for test particle, background particle, reaction
+\end{verbatim}
+E.g., the user might respond with
+\begin{verbatim}
+D D+ hchex
+\end{verbatim}
+
+The code will echo the corresponding names:
+\begin{verbatim}
+      Test species is:       atomic deuterium
+      Background species is: deuterium ion
+      Reaction name is:      hydrogen charge exchange
+\end{verbatim}
+
+Next, the user needs to choose the energy of the test particle, and
+the background density and temperature:
+\begin{verbatim}
+Enter test energy, background density, temperature
+\end{verbatim}
+For example,
+\begin{verbatim}
+5. 1.e19 10.
+\end{verbatim}
+The energy and temperature are in eV; the density is in m$^{-3}$.
+
+This information is echoed by the code in the corresponding internal
+units:
+\begin{verbatim}
+    Test energy =   8.0108867E-19 J
+    Test (vx,vy,vz) =   2.1887737E+04,   0.0000000E+00,   0.0000000E+00 m/s
+    Background density =   1.0000000E+19 m**-3
+    Background temperature =   1.6021773E-18 J
+\end{verbatim}
+Note that the test velocity is assumed, without loss of generality, to be
+along the $x$ axis.
+
+The first piece of output from the code is the reaction rate,
+$n_{\rm back} \langle \sigma v \rangle$:
+\begin{verbatim}
+      => Reaction rate =   1.8638898E+05 s**(-1)
+\end{verbatim}
+
+Secondly, the product species, velocities, and weights (assuming that the
+test reagent had unit weight) are printed:
+\begin{verbatim}
+  Number of products =   2
+   Product #  1 is atomic deuterium                
+     (vx,vy,vz) =   1.3201844E+04,  -1.2129006E+04,  -1.2442806E+04 m/s
+      weight =     1.0000000000000
+   Product #  2 is deuterium ion                   
+     (vx,vy,vz) =   2.1887737E+04,   0.0000000E+00,   0.0000000E+00 m/s
+      weight =     1.0000000000000
+\end{verbatim}
+Note that since some aspects of the collision process may be random
+(e.g., in this case the ion reagent is sampled from a Maxwellian
+distribution), these results may not be unique. However, they should
+be reproducible in consecutive runs of |reactiontest|.
+
+Third, the mass, momentum, and energy exchange rates for the reaction
+are given. For simplicity, the exchanges for all background and
+test species in the problem are listed, including species not appearing in
+the examined reaction:
+\begin{verbatim}
+  Background Sources: mass, momentum (1, 2, 3), energy
+  Background = electron
+  0.0000000E+00
+(  0.0000000E+00,   0.0000000E+00,   0.0000000E+00)
+  0.0000000E+00
+  Background = deuterium ion
+  0.0000000E+00
+(  5.4128407E-18,   7.5585061E-18,   7.7540588E-18)
+  8.8745150E-16
+  Test Sources: mass, momentum (1, 2, 3), energy
+  Test = geometry
+  0.0000000E+00
+(  0.0000000E+00,   0.0000000E+00,   0.0000000E+00)
+  0.0000000E+00
+  Test = atomic deuterium
+  0.0000000E+00
+( -5.4143155E-18,  -7.5605654E-18,  -7.7561715E-18)
+ -8.8769329E-16
+  Test = molecular deuterium
+  0.0000000E+00
+(  0.0000000E+00,   0.0000000E+00,   0.0000000E+00)
+  0.0000000E+00
+  Test = molecular deuterium ion
+  0.0000000E+00
+(  0.0000000E+00,   0.0000000E+00,   0.0000000E+00)
+  0.0000000E+00
+\end{verbatim}
+The units for these quantities are ${\rm kg} / {\rm s}$ (mass), 
+${\rm kg} \, {\rm m} / {\rm s}^{2}$ (momentum), 
+and ${\rm J} / {\rm s}$ (energy). A positive value indicates a gain
+by the species; a negative value indicates a loss.
+
+Finally, some reactions generate additional scoring data, such as
+line emission rates. If present, these will be printed after the line
+\begin{verbatim}
+  Other Scoring Data:
+\end{verbatim}
+By design, the code computes whatever quantities are included in the 
+reaction's netCDF file, without any additional knowledge as to what the
+quantity is. Hence, no further explanation is available here. The user could 
+likely learn more
+about these quantities from the netCDF file of the reaction and / or
+from the corresponding entry in the |DATA_HISTORY| log.
 
 @m FILE 'reactiontest.web'
 
@@ -130,7 +248,7 @@
       @<Memory allocation interface@>
 
       character*LINELEN line                         // Local
-      integer length,p,b,e,i,nprod
+      integer length,p,b,e,i,nprod,psp
       rn_seed_decl(seed)
       real vtest,energy,density,temperature,rate,rr
       real independent_parameters[xs_max_indep_params],w_prod[rc_product_max],
@@ -146,6 +264,7 @@
       pr_reaction_decl(prob_react)
       pr_reaction_decl(ts_reac)
       pr_background_decl(back)
+      pr_test_decl(test_i)
       rn_decl(tag)
 
       external eval_data                             // External
@@ -165,23 +284,51 @@ loop: continue
       p=0
       assert(next_token(line,b,e,p))
       test=sp_lookup(line(b:e))
-      assert(pr_test_check(pr_test_lookup(test)))
+      if (!sp_check(test)) then
+         write(stdout,*) line(b:e),' is not a valid species; try again.'
+         go to loop
+      end if
+      if (!pr_test_check(pr_test_lookup(test))) then
+         write(stdout,*) line(b:e),' is not a valid test species; try again.'
+         go to loop
+      end if
       assert(next_token(line,b,e,p))
       background=sp_lookup(line(b:e))
-      assert(pr_background_check(pr_background_lookup(background)))
+      if (!sp_check(background)) then
+         write(stdout,*) line(b:e),' is not a valid species; try again.'
+         go to loop
+      end if
+      if (!pr_background_check(pr_background_lookup(background))) then
+         write(stdout,*) line(b:e),' is not a valid background species; try again.'
+         go to loop
+      end if
       assert(next_token(line,b,e,p))
       reaction=rc_lookup(line(b:e))
-      
+      if (!rc_check(reaction)) then
+         write(stdout,*) line(b:e),' is not a valid reaction; try again.'
+         go to loop
+      end if
       prob_react=pr_reaction_lookup(reaction)
-      assert(pr_reaction_check(prob_react))
+      if (!pr_reaction_check(prob_react)) then
+         write(stdout,*)line(b:e), ' is not a valid reaction for this problem; try again.'
+         go to loop
+      end if
       ts_reac=int_lookup(prob_react,pr_ts_rc(pr_test_lookup(test),1),pr_reaction_max)
       
-      assert(sp_generic(test) == sp_generic(rc_reagent(reaction,2)))
-      assert(sp_generic(background) == sp_generic(rc_reagent(reaction,1)))
+      if (!(sp_generic(test) == sp_generic(rc_reagent(reaction,2)))) then
+         write(stdout,*) trim(sp_sy(test)),' is not a reagent for reaction ',
+     $        trim(rc_sy(reaction)),'; try again.'
+         go to loop
+      end if
+      if (!(sp_generic(background) == sp_generic(rc_reagent(reaction,1)))) then
+         write(stdout,*) trim(sp_sy(background)),' is not a reagent for reaction ',
+     $        trim(rc_sy(reaction)),'; try again.'
+         go to loop
+      end if
       
-      write(stdout,*) '     Test species is:       ',sp_name(test)
-      write(stdout,*) '     Background species is: ',sp_name(background)
-      write(stdout,*) '     Reaction name is:      ',rc_name(reaction)
+      write(stdout,*) '     Test species is:       ',trim(sp_name(test))
+      write(stdout,*) '     Background species is: ',trim(sp_name(background))
+      write(stdout,*) '     Reaction name is:      ',trim(rc_name(reaction))
 
 loop1: continue
 
@@ -197,6 +344,10 @@ loop1: continue
       density=read_real(line(b:e))
       assert(next_token(line,b,e,p))
       temperature=electron_charge*read_real(line(b:e))
+      if (energy <= zero || density <= zero || temperature <= zero) then
+         write(stdout,*) ' All of these quantities must be greater than zero; try again.'
+         go to loop1
+      end if
       
       vtest=sqrt(two*energy/sp_m(test))
       vc_set(vt,vtest,zero,zero)
@@ -235,12 +386,15 @@ loop1: continue
      $     independent_parameters,rn_args(tag))
      $     *independent_parameters[xs_var_density]
 
-      write(stdout,*) '    Test energy = ',energy,' J'
-      write(stdout,*) '    Test (vx,vy,vz) = ',vt[1],', ',vt[2],', ',vt[3],
-     $                     ' m/s'
-      write(stdout,*) '    Background density = ',density,' m**-3'
-      write(stdout,*) '    Background temperature = ',temperature,' J'
-      write(stdout,*) '      => Reaction rate = ',rate,' s**(-1)'
+      write(stdout,'(a,1pe15.7,a)') '    Test energy = ',energy,' J'
+      write(stdout,'(a,1pe15.7,a,e15.7,a,e15.7,a)') '    Test (vx,vy,vz) = ',
+     $     vt[1],', ',vt[2],', ',vt[3],' m/s'
+      write(stdout,'(a,1pe15.7,a)') '    Background density = ',
+     $     density,' m**-3'
+      write(stdout,'(a,1pe15.7,a)') '    Background temperature = ',
+     $     temperature,' J'
+      write(stdout,'(a,1pe15.7,a)') '      => Reaction rate = ',
+     $     rate,' s**(-1)'
 
       if (reaction_handling_num_rand[prob_react] > 0) then
          assert(reaction_handling_num_rand[prob_react] <= xs_max_random)
@@ -292,25 +446,40 @@ loop1: continue
       write(stdout,*) ' Number of products = ',nprod
       do i=1,nprod
          write(stdout,*) '  Product #',i,' is ',sp_name(prod[i])
-         write(stdout,*) '     (vx,vy,vz) = ',v_prod[i][1],', ',v_prod[i][2],
-     $                   ', ',v_prod[i][3],' m/s'
+         write(stdout,'(a,1pe15.7,a,e15.7,a,e15.7,a)') '     (vx,vy,vz) = ',
+     $        v_prod[i][1],', ',v_prod[i][2],', ',v_prod[i][3],' m/s'
          write(stdout,*) '     weight = ',w_prod[i]
       end do
 
       write(stdout,*) ' Background Sources: mass, momentum (1, 2, 3), energy'
       do back=1,pr_background_num
-         write(stdout,*) ' Background = ',sp_name(pr_background(back))
-         write(stdout,*) scoring_data[pr_var_back_index(pr_var_back_mass,back)]
-         write(stdout,*) '(',scoring_data[pr_var_back_index(pr_var_back_momentum_vector,back)],', ',
-     $        scoring_data[pr_var_back_index(pr_var_back_momentum_2,back)],', ',
-     $        scoring_data[pr_var_back_index(pr_var_back_momentum_3,back)],')'
-         write(stdout,*) scoring_data[pr_var_back_index(pr_var_back_energy,back)]
+         write(stdout,*) ' Background = ',trim(sp_name(pr_background(back)))
+         psp=pr_problem_sp_back(back)
+         write(stdout,'(1pe15.7)') scoring_data[pr_var_problem_sp_index(pr_var_mass_change,psp)]
+         write(stdout,'(a,1pe15.7,a,e15.7,a,e15.7,a)') '(',
+     $        scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_vector,psp)],', ',
+     $        scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_2,psp)],', ',
+     $        scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_3,psp)],')'
+         write(stdout,'(1pe15.7)') scoring_data[pr_var_problem_sp_index(pr_var_energy_change,psp)]
+      end do
+
+      write(stdout,*) ' Test Sources: mass, momentum (1, 2, 3), energy'
+      do test_i=1,pr_test_num
+         write(stdout,*) ' Test = ',trim(sp_name(pr_test(test_i)))
+         psp=pr_problem_sp_test(test_i)
+         write(stdout,'(1pe15.7)') scoring_data[pr_var_problem_sp_index(pr_var_mass_change,psp)]
+         write(stdout,'(a,1pe15.7,a,e15.7,a,e15.7,a)') '(',
+     $        scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_vector,psp)],', ',
+     $        scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_2,psp)],', ',
+     $        scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_3,psp)],')'
+         write(stdout,'(1pe15.7)') scoring_data[pr_var_problem_sp_index(pr_var_energy_change,psp)]
       end do
 
       write(stdout,*) ' Other Scoring Data:'
-      do i=1,pr_var_back_mass-1
+      do i=1,pr_var_mass_change-1
          if (scoring_data[i] != zero) then
-            write(stdout,*) 'scoring_data[',i,'] = ',scoring_data[i]
+            write(stdout,'(a,i3,a,1pe15.7)') 'scoring_data[',i,'] = ',
+     $           scoring_data[i]
          end if
       end do
 
