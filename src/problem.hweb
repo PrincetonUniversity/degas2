@@ -3,6 +3,10 @@
 % $Id$
 
 % $Log$
+% Revision 1.26  1999/04/20 20:10:33  dstotler
+% Add new dependent variables for direction-dependent scores of
+% PMI. Increased values for pr_var_back_mass, etc. to make room.
+%
 % Revision 1.25  1999/03/25 20:47:04  dstotler
 % Move in attribute descriptions from classes.web file.
 %
@@ -187,7 +191,9 @@ problem is identified by an integer indexing into these arrays.
 @m pr_bkrc_reagent_max 2
 @m pr_tag_string_length 40
 
-@m Pointers to entries in dependent variable list
+@ Pointers to entries in dependent variable list. These are associated
+with string descriptors in subroutine |init_var0_list|. New additions
+here must added there as well.
 
 @m pr_var_unknown 1
 @m pr_var_mass 2                        // test particle data
@@ -204,29 +210,36 @@ problem is identified by an integer indexing into these arrays.
 @m pr_var_emitter_vf_Maxwell_3 13
 @m pr_var_emitter_vth_Maxwell 14
 
-@m pr_var_mass_in 15                    // Direction dependent for use with
-@m pr_var_momentum_in_vector 16         // PMI and diagnostic sectors.
-@m pr_var_momentum_in_2 17
-@m pr_var_momentum_in_3 18              // ``mass'' variables are assumed to be
-@m pr_var_energy_in 19                  // first in these two lists. The lists
-@m pr_var_mass_out 20                   // are |pr_num_diag_vars| items long.
-@m pr_var_momentum_out_vector 21
-@m pr_var_momentum_out_2 22
-@m pr_var_momentum_out_3 23
-@m pr_var_energy_out 24
-
 @m pr_num_diag_vars 5  
                                         // Constructed variables begin after
                                         // these; place other constants above.
-@m pr_var_back_mass 30              
-@m pr_var_back_momentum_vector 31       // Exchanges with background species
-@m pr_var_back_momentum_2 32
-@m pr_var_back_momentum_3 33
-@m pr_var_back_energy 34
+@m pr_var_mass_change 20              
+@m pr_var_momentum_change_vector 21       // Exchanges with background species
+@m pr_var_momentum_change_2 22
+@m pr_var_momentum_change_3 23
+@m pr_var_energy_change 24
+@m pr_var_mass_in 25                    // Direction dependent for use with
+@m pr_var_momentum_in_vector 26         // PMI and diagnostic sectors.
+@m pr_var_momentum_in_2 27
+@m pr_var_momentum_in_3 28              // ``mass'' variables are assumed to be
+@m pr_var_energy_in 29                  // first in these two lists. The lists
+@m pr_var_mass_out 30                   // are |pr_num_diag_vars| items long.
+@m pr_var_momentum_out_vector 31
+@m pr_var_momentum_out_2 32
+@m pr_var_momentum_out_3 33
+@m pr_var_energy_out 34
 
-@m pr_num_back_vars 5 
+@m pr_num_change_vars 15
 
-@m pr_var_back_index(i,back) i+pr_num_back_vars*back
+@#if 0
+@m pr_var_back_index(i,back) i+pr_num_change_vars*back
+@#endif
+
+@m pr_problem_sp_back(back) back
+
+@m pr_problem_sp_test(test) (pr_background_num+test)
+
+@m pr_var_problem_sp_index(i,psp) i+pr_num_change_vars*psp
 
 @ Variable definitions.
 
@@ -460,10 +473,19 @@ the species $i_{s}$ is not a background species.
   \item{|pr_reaction_lookup|($i_{r}$)} Index into the list of problem reactions
 corresponding to reference reaction $i_{r}$.
 
-  \item{|pr_var_back_index|($i$,|back|)} Provides integer index into 
-|pr_var0_list| specific for background species |back| (the generic
-background-related variables such as |pr_var_back_mass| are duplicated
-|pr_background_num| times).
+  \item{|pr_problem_sp_back|(|back|)} Provides integer index into 
+combined background and test list (problem species list) for background
+species |back|.
+
+  \item{|pr_problem_sp_test|(|test|)} Provides integer index into 
+combined background and test list (problem species list) for test
+species |test|.
+
+  \item{|pr_var_problem_sp_index|($i$,|psp|)} Provides integer index
+into |pr_var0_list| for any problem species |psp|. The list of
+problem species is the combined  background and test species list.
+(The generic exchange variables such as |pr_var_mass_change| are duplicated
+|pr_background_num| + |pr_test_num| times).
 \end{description}
 
 @ Problem setup variables for isotopic variations. Prefix is |ps|.
