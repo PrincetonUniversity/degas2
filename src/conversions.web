@@ -2,6 +2,9 @@
 \Title{conversions}
 
 % $Log$
+% Revision 1.4  1998/09/04 17:08:28  dstotler
+% Minor changes to satisfy FWEAVE and TeX.
+%
 % Revision 1.3  1998/05/08 13:48:56  dstotler
 % Changes associated with switch of tally_dep_var from CHAR to INT.
 %
@@ -304,8 +307,12 @@ not appropriate to make permanent changes to them.
       if (pr_test_check(index_parameters[tl_index_test])) 
      $cv_params[tl_cv_test_mass]=sp_m(pr_test(index_parameters[tl_index_test]))
 
-      if (pr_background_check(index_parameters[tl_index_back]))
-     $     cv_params[tl_cv_back_mass]=sp_m(pr_background(index_parameters[tl_index_back]))
+      if (pr_background_check(index_parameters[tl_index_problem_sp])) then
+         cv_params[tl_cv_problem_sp_mass]=sp_m(pr_background(index_parameters[tl_index_problem_sp]))
+      else if (pr_test_check(index_parameters[tl_index_problem_sp]-pr_background_num)) then
+         cv_params[tl_cv_problem_sp_mass]=sp_m(pr_test(index_parameters[tl_index_problem_sp]-pr_background_num))
+      end if
+         
 
       zone=index_parameters[tl_index_zone]
       if (zn_check(zone)) then
