@@ -2,6 +2,10 @@
 \Title{readbackground}
 
 % $Log$
+% Revision 1.25  1999/07/22 17:56:17  dstotler
+% Use update flag to denote old or new run rather than locally doing a
+% check on source_segment_ptr (this didn't work well in DEBUG=no mode).
+%
 % Revision 1.24  1999/05/25 13:33:40  dstotler
 % Allocate & set default value for source_num_checkpoints.
 % Completely rewritten to facilitate creation of updatebackground.
@@ -215,6 +219,8 @@ of the file name (x.d is degas and x.u for uedge) */
       var_alloc(background_n)
       var_alloc(background_v)
       var_alloc(background_temp)
+      var_alloc(background_pres)
+
       if (degas) then
          call read_degas_background(degasfilename)
       elseif (uedge) then
