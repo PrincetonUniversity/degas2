@@ -26,5 +26,6 @@ pmifile ../data/pmi.nc
 tallyfile tally_MyRun.nc
 outputfile degas2_MyRun_out.nc
 oldsourcefile os_MyRun.nc
+tally_infile tally_MyRun.input
 
 

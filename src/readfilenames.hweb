@@ -3,6 +3,9 @@
 % $Id$
 
 % $Log$
+% Revision 1.9  1999/05/25 13:40:54  dstotler
+% Added oldsourcefile.
+%
 % Revision 1.8  1999/03/25 20:48:59  dstotler
 % Make filenames_max a parameter.
 %
@@ -33,8 +36,9 @@ Symbolic names for DEGAS 2 input and output files.
 @m tallyfile 19
 @m outputfile 20
 @m oldsourcefile 21
+@m tally_infile 22
 
-@m filenames_max 21   // Largest of the above
+@m filenames_max 22   // Largest of the above
 
 @ common block definitions for filenames
 

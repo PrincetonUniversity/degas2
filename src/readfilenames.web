@@ -71,7 +71,8 @@ loop:      if (! read_string(diskin,line,length) ) goto eof
      $     || sym_name == 'cramdproblemfile' 
      $     || sym_name == 'tallyfile'
      $     || sym_name == 'outputfile'
-     $     || sym_name == 'oldsourcefile')
+     $     || sym_name == 'oldsourcefile'
+     $     || sym_name == 'tally_infile')
       
 @#if 0
       filenames_max = filenames_max +1
@@ -119,6 +120,8 @@ loop:      if (! read_string(diskin,line,length) ) goto eof
          filenames_array[outputfile] = line(b:e)
       elseif ( sym_name == 'oldsourcefile') then
          filenames_array[oldsourcefile] = line(b:e)
+      elseif ( sym_name == 'tally_infile') then
+         filenames_array[tally_infile] = line(b:e)
       endif
 
       goto loop

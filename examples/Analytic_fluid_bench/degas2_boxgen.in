@@ -25,4 +25,6 @@ pmi_infile ../data/pmi.input
 pmifile ../data/pmi.nc
 tallyfile tally_boxgen.nc
 outputfile degas2_boxgen_out.nc
+tally_infile ../examples/Analytic_fluid_bench/tally_boxgen.input
+
 

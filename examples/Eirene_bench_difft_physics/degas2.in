@@ -26,5 +26,5 @@ pmifile ../data/pmi.nc
 tallyfile tally_uers.nc
 outputfile degas2_uers_out.nc
 oldsourcefile os_uers.nc
-
+tally_infile ../examples/Eirene_bench_difft_physics/tally_uers.input
 

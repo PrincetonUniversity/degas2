@@ -25,4 +25,4 @@ pmi_infile ../data/pmi.input
 pmifile ../data/pmi.nc
 tallyfile tally_ts0712b.nc
 outputfile degas2_ts0712b_out.nc
-
+tally_infile ../examples/Degas_box_bench/tally_ts0712b.input
