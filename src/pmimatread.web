@@ -2,6 +2,10 @@
 \Title{pmimattread}
 
 % $Log$
+% Revision 1.8  1999/05/25 13:16:23  dstotler
+% Disabled error behavior for nc_open of output file. Instead,
+% set output_old_file and return.
+%
 % Revision 1.7  1999/03/25 20:52:11  dstotler
 % Added check(s) on filenames_array.
 %
@@ -213,9 +217,9 @@ Introduction\ldots
 @<Functions...@>=
       subroutine nc_read_output
       implicit_none_f77
-      pr_common
+      pr_common                  // Common
       so_common
-      tl_common                  // Common
+      tl_common
       ou_common
       rf_common
       implicit_none_f90
