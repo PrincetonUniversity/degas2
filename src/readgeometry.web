@@ -2,6 +2,12 @@
 \Title{readgeometry}
 
 % $Log$
+% Revision 1.42  1999/07/22 17:57:21  dstotler
+% Added some values for polygon_segment in an attempt to get
+% sector_strata_segment to have all non-trivial values.  (Not completely
+% tested) Set de_view_size = 1 for "Null Detector Setup" case (all other
+% detector setups have nontrivial views defined).
+%
 % Revision 1.41  1999/07/19 19:29:01  karney
 % (1) Remove much dead code in random.web.
 %
@@ -490,6 +496,7 @@ See the Examples section in the manual for additional examples of
 @m UEDGE_RECT_SLAB 1  // Marv's single-null slab used in the EIRENE benchmark.
 @m BOX 2              // A 1 by 1 box, e.g., from |boxgen|.
 @m WISING_CMOD 3      // Fred Wising's UEDGE simulation of C-Mod.
+@m DEGAS_CMOD 4
 
 @m GEOMETRY GENERAL  // Pick one of the above.
 
@@ -553,7 +560,7 @@ See the Examples section in the manual for additional examples of
      $     wall_stop,wall_direction,i,j,grid_startv,grid_stopv,j1,j2,
      $     grid_starth,grid_stoph,steph,stepv,h,v,num,nx,ny,nu,ixpt1,ixpt2,iysp
      $     trx,symmetry,ix_mirror,null_type,grid_sense,segment,segment1
-@#if (GEOMETRY == UEDGE_RECT_SLAB)
+@#if (GEOMETRY == UEDGE_RECT_SLAB || GEOMETRY == DEGAS_CMOD)
       integer var,tab_index,spacing
       real var_min,var_max,mult
       integer grp_sectors1[mx]
@@ -723,7 +730,9 @@ loop2: continue
          call init_geometry
       elseif (keyword == 'new_zone') then
          zone++
+@#if 0
          zn_volume(zone)=zero
+@#endif
          assert(next_token(line,b,e,p))
          new_zone_type=line(b:e)
       elseif (keyword == 'new_polygon') then
@@ -923,6 +932,17 @@ eof:  continue
 */
                      assert(segment1 <= mx) 
                   end if
+@#elseif (GEOMETRY == DEGAS_CMOD)
+                  if ((zn_type(zone1) == zn_vacuum 
+     $                   && zn_type(zone2) == zn_plasma) ||
+     $                (zn_type(zone1) == zn_vacuum 
+     $                   && zn_type(zone2) == zn_vacuum &&
+     $                   !(sc_check(int_lookup(-face1,sector_surface[1],nsectors))))) then
+                     stratum=6
+                     segment1++
+                     sector1=define_sector(stratum,segment1,-face1,zone2,zone1)
+                     grp_sectors1[segment1]=sector1
+                  end if
 @#endif                  
                   stratum=polygon_stratum[i]
                   if ((zn_type(zone1) == zn_solid) && (zn_type(zone2) == zn_plasma)) then
@@ -984,7 +1004,7 @@ next_surface continue
       
       call diag_sector_setup
 
-@#if (GEOMETRY == UEDGE_RECT_SLAB)
+@#if (GEOMETRY == UEDGE_RECT_SLAB || GEOMETRY == DEGAS_CMOD)
 /*
    Define this set of sectors as a separate ``diagnostic group''. 
    No energy or angle distribution is to be computed on these sectors:
@@ -2352,7 +2372,7 @@ follow immediately below (FWEB insisted things be arranged this way).
 @#if (GEOMETRY == BOX)
 @<Box Detector Setup@>
 
-@#elif (GEOMETRY == WISING_CMOD)
+@#elif (GEOMETRY == WISING_CMOD || GEOMETRY == DEGAS_CMOD)
 @<Wising C-Mod Detector Setup@>
 
 @#else
@@ -2479,8 +2499,13 @@ follow immediately below (FWEB insisted things be arranged this way).
    $R_{\rm lim} = 0.43$, $Z_{\rm max} = 1.30115$.
 */
 
+@#if (GEOMETRY == WISING_CMOD)
       r0ha=const(7.417,-1)         // Vertex, from C-Mod guys
       z0ha=const(1.17815)
+@#elif (GEOMETRY == DEGAS_CMOD)
+      r0ha=const(7.517,-1)     // Shifted for old DEGAS $R_{\rm lim} = 0.44$,
+      z0ha=const(1.087)        // $Z_{\rm max} = 1.21$.
+@#endif
       if (detector_total_views > 0) then
          do view=1,ctop_views
             de_view_algorithm[view]=de_algorithm_uniform
