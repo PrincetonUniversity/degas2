@@ -1,0 +1,52 @@
+@* Specification for a 2-D Geometry.
+
+% $Id$
+
+% $Log$
+
+\ID{$Id$}
+
+@ Parameters 
+
+@m g2_num_points 200   
+@m g2_xz 2
+@m g2_x 1
+@m g2_z 2
+
+@ Variable Definitions
+
+@a
+      package_init(g2)
+      define_dimen_pk(g2,g2_points_ind0,0,g2_num_points-1)
+      define_dimen_pk(g2,g2_points_ind,g2_num_points)
+      define_dimen_pk(g2,g2_xz_ind,g2_xz)
+      define_var_pk(g2,g2_num_polygons,INT)
+      define_dimen_pk(g2,g2_poly_ind,g2_num_polygons)
+      define_varp_pk(g2,g2_polygon_xz,FLOAT,g2_xz_ind,g2_points_ind0,g2_poly_ind)
+      define_varp_pk(g2,g2_polygon_points,INT,g2_poly_ind)
+      define_varp_pk(g2,g2_polygon_zone,INT,g2_poly_ind)
+// This is the minimum; fill out the rest later
+
+      package_end(g2)
+
+@* Two-D geometry specification class.
+
+@ Define a 2-D geometry. Prefix is g2.
+
+\begin{description}
+  \item[|g2_num_points|] Maximum number of points in a polygon or wall.
+Have chosen to fix this rather than dealing with two variable dimensions.
+  \item[|g2_xz|] Just an index to represent $x$ and $z$.
+  \item[|g2_polygon_xz[poly_ind][points_ind][xz_ind]|] $x$ (|xz_ind| = 1), 
+$z$ (|xz_ind| = 2) coordinates of polygon |poly_ind|. The first
+point (|points_ind| =0) and last (|points_ind| = 
+|g2_polygon_points[poly_ind]|) must coincide. All polygons used to
+specify this geometry are contained in this array.
+  \item[|g2_polygon_points[poly_ind]|] Actual number of distinct (i.e., not
+counting the duplicate first / last) points in polygon |poly_ind|.
+  \item[|g2_polygon_zone[poly_ind]|] Zone number to be associated with
+polygon |poly_ind|.
+\end{description}
+
+
+

@@ -1,0 +1,1924 @@
+% $Id$
+\Title{definegeometry2d}
+
+% $Log$
+
+@* Program for defining 2-D geometries. This routine is intended
+to be an extension of the logic used in |readgeometry|. Potential couplings
+to other geometry packages, such as the DG code developed in Garching and
+AVS/Express, have been taken into consideration. The initial implementation
+will be with a text-based input file, but eventually this will be expanded
+to provide an interactive (graphic?) interface. The intermediate specification
+of the geometry in terms of polygons is written out to a netCDF file; the
+option of reading this file and completing the geometry specification
+from there should be added.
+
+At present this code is considered ``not ready for public consumption''
+and is, consequently, essentially undocumented. 
+
+\ID{$Id$}
+
+@m FILE 'definegeometry2d.web'
+
+@m dg_loop #:0
+@m wall_loop #:0
+@m wall_loop2 #:0
+@m wall_break #:0
+@m next_surface #:0
+
+@I macros.hweb
+@I geometry2d.hweb
+@I sysdep.hweb
+@I string.hweb
+@I netcdf.hweb
+@I geomint.hweb
+@I location.hweb
+@I zone.hweb
+@I materials.hweb
+@I sector.hweb
+
+@ The unnamed module.
+
+@a
+      @<Functions and subroutines@>
+@c
+#define REAL double  // Need to be sure this does not overlap with local macros
+#include <stdio.h>
+#include "triangle.h"   // Dependency explicitly included in Makefile
+      @<C Functions@>
+
+@ The main program.
+@m element_start 0
+@m element_end 1
+
+@m node_undefined 0
+@m node_regular 1
+@m node_no_elements 2
+@m node_one_element 3
+@m node_many_elements 4
+@m node_mixed_normals 5
+
+@m sec_undef 0
+@m sec_p1 1
+@m sec_p2 2
+@m sec_miss 3
+@m sec_done 40  // Try to match to maximum?
+
+@m poly_stratum 1       // Indices for |poly_int_props|
+@m poly_material 2
+@m poly_int_max 2
+
+@m poly_temperature 1    // Indices for |poly_real_props|
+@m poly_recyc_coef 2
+@m poly_real_max 2
+
+@m clear_polygon 0
+@m breakup_polygon 1
+@m triangulate_polygon 2
+@m triangulate_to_zones 3
+
+@m increment_num_elements       num_elements++;
+      var_realloca(element_nodes);
+      var_realloca(element_missing);
+      var_realloca(element_assigned) @;
+
+@m increment_num_nodes      num_nodes++;
+      var_realloca(nodes);
+      var_realloca(node_type);
+      var_realloca(node_element_count) @;
+
+@m increment_num_walls      num_walls++;
+      var_realloca(wall_nodes);
+      var_realloca(wall_elements);
+      var_realloca(wall_element_count) @;
+
+@m increment_g2_num_polygons    g2_num_polygons++;
+      var_realloca(g2_polygon_xz);
+      var_realloca(g2_polygon_points);
+      var_realloca(g2_polygon_zone);
+      var_realloca(poly_int_props);
+      var_realloca(poly_real_props);
+      do i_inc_g2=0,g2_num_points-1;
+         g2_polygon_xz[g2_num_polygons][i_inc_g2][g2_x]=zero;
+         g2_polygon_xz[g2_num_polygons][i_inc_g2][g2_z]=zero;
+      end do @;
+
+@m open_file(aunit,aname)    open(unit=aunit,file=aname,status='old',form='formatted',iostat=open_stat);
+            if (open_stat != 0) then;
+         write (stderr,*) ' Cannot open file ',line(b:e),', error number ',open_stat;
+         return;
+      end if @;
+
+@m mesh_xzm(jxz,i,ix,iz) mesh_xz[(iz-1)*nxd+ix][i][jxz]   // ``m'' for macro.
+
+@<Functions...@>=
+      program definegeometry2d
+      implicit_none_f77
+      implicit_none_f90
+      character*FILELEN filename
+
+      call readfilenames
+      
+      call command_arg(1,filename)
+      call nc_read_materials
+      call def_geom_2d_main(filename)
+
+      stop
+      end
+
+@ Main subroutine.
+@<Functions...@>=
+      subroutine def_geom_2d_main(filename)
+      
+      define_dimen(node_ind,num_nodes)
+      define_dimen(element_ind,num_elements)
+      define_dimen(element_ends_ind,element_start,element_end)
+/*
+   Add ``2d'' to distinguish from |wall_ind| in |sector.hweb|.
+*/
+      define_dimen(wall2d_ind,num_walls)   
+      define_dimen(mesh_corner_ind,0,4)
+      define_dimen(mesh_xz_ind,nxd*nzd)
+      define_dimen(poly_int_ind,poly_int_max)
+      define_dimen(poly_real_ind,poly_real_max)
+
+      define_varp(nodes,FLOAT,g2_xz_ind,node_ind)
+      define_varp(node_type,INT,node_ind)
+      define_varp(node_element_count,INT,node_ind)
+
+      define_varp(element_nodes,INT,element_ends_ind,element_ind)
+      define_varp(element_missing,INT,element_ind)
+      define_varp(element_assigned,INT,element_ind)
+
+      define_varp(wall_nodes,INT,g2_points_ind0,wall2d_ind)
+      define_varp(wall_elements,INT,g2_points_ind,wall2d_ind)
+      define_varp(wall_element_count,INT,wall2d_ind)
+/*
+   Since we can have only one adjustable dimension with pointers,
+   combine the two into a single one here. We can use the desired
+   3-D representation in subroutines accessing these arrays.
+*/
+      define_varp(mesh_xz,FLOAT,g2_xz_ind,mesh_corner_ind,mesh_xz_ind)
+
+      define_varp(poly_int_props,INT,poly_int_ind,g2_poly_ind)
+      define_varp(poly_real_props,FLOAT,poly_real_ind,g2_poly_ind)
+
+      implicit_none_f77
+      g2_common
+      implicit_none_f90
+
+      character*FILELEN filename         // Input
+/*
+      Local variables, by section:
+*/
+      integer diskin2,length,p,b,e,open_stat,zone,fileid,   // Main section
+     $        prep_done,i_inc_g2,i_prop
+      integer current_int_props[1:poly_int_max]
+      real current_real_props[1:poly_real_max]
+      character*LINELEN line,keyword
+
+      integer ielement,section,i,inode,                     // Process DG File
+     $     miss_elem,start,end,iwall,iseg,ielement2
+      real temp_x,temp_z,mult
+
+      integer mesh_sense,ix,iz,n                            // Mesh Polygons
+      vc_decl(yhat)
+      vc_decl(test_vec_1)
+      vc_decl(test_vec_2)
+      vc_decl(test_vec_3)
+      vc_decl(center)
+
+      real x_min,x_max,z_min,z_max,xb_min,xb_max,           // Min., Max.
+     $     yb_min,yb_max,zb_min,zb_max,vol
+      vc_decl(min_corner)
+      vc_decl(max_corner)
+
+      integer nunit                                         // Print Walls
+      character*LINELEN file_format
+      character*FILELEN walloutfile
+
+      integer num_new_walls,this_node                        // Wall File
+      real x_wall,z_wall
+      character*FILELEN wallinfile
+
+      integer symmetry                                       // Symmetry
+
+      integer process_polygon,ntriangles,refine,j            // Zone, Polygon
+      integer temp_int_props[1:poly_int_max]
+      real temp_polygon[0:g2_num_points-1][g2_x:g2_z],
+     $     temp_triangles[0:g2_num_points-1][0:3][g2_x:g2_z],
+     $     temp_real_props[1:poly_real_max]
+      character*LINELEN new_zone_type     
+
+      integer write_poly_nc                                // |polygon.nc| file
+      character*FILELEN polygon_nc_file
+
+      integer num_nodes,num_elements,num_walls,nxd,nzd     // Local pointers
+
+      declare_varp(nodes)
+      declare_varp(node_type)
+      declare_varp(node_element_count)
+
+      declare_varp(element_nodes)
+      declare_varp(element_missing)
+      declare_varp(element_assigned)
+
+      declare_varp(wall_nodes)
+      declare_varp(wall_elements)
+      declare_varp(wall_element_count)
+
+      declare_varp(mesh_xz)
+
+      declare_varp(poly_int_props)
+      declare_varp(poly_real_props)
+
+      @<Memory allocation interface@>
+      st_decls
+      vc_decls
+      nc_decls
+      g2_ncdecl
+      gi_ext
+/*
+   PREPARATION STAGE
+*/
+      open(unit=diskin,file=filename,status='old',form='formatted')
+      diskin2=diskin+1
+
+      zone=0
+      g2_num_polygons=0
+      symmetry=geometry_symmetry_none
+      xb_min=zero
+      xb_max=zero
+      yb_min=zero
+      yb_max=zero
+      zb_min=zero
+      zb_max=zero
+      nxd=0
+      nzd=0
+      num_walls=0
+      num_nodes=0
+      num_elements=0
+      prep_done=FALSE
+      current_int_props[poly_stratum]=0
+      current_int_props[poly_material]=0
+      current_real_props[poly_temperature]=const(3.,2)
+      current_real_props[poly_recyc_coef]=one
+      write_poly_nc=TRUE
+      polygon_nc_file='polygon.nc'
+
+loop1: continue
+
+      assert(read_string(diskin,line,length))
+      assert(length<=len(line))
+      length=parse_string(line(:length))
+      p=0
+      assert(next_token(line,b,e,p))
+      keyword=line(b:e)
+
+      if (keyword == 'dg_file') then
+         @<Process DG File@>
+
+      else if (keyword == 'sonnet_mesh' || keyword == 'uedge_mesh') then
+         assert(next_token(line,b,e,p))
+         open_file(diskin2,line(b:e))
+/*
+   E.g., \verb+sonnet_mesh filename 120 24+
+*/
+         if (keyword == 'sonnet_mesh') then
+            assert(next_token(line,b,e,p))
+            nxd=read_integer(line(b:e))
+            assert(next_token(line,b,e,p))
+            nzd=read_integer(line(b:e))
+         else if (keyword == 'uedge_mesh') then
+            assert(next_token(line,b,e,p))
+            read(diskin2,*)         // First line is a comment
+            read(diskin2,*) nxd
+            read(diskin2,*) nzd
+         end if
+         var_alloc(mesh_xz)
+         
+         if (keyword == 'sonnet_mesh') then
+            call read_sonnet_mesh(diskin2,nxd,nzd,mesh_xz)
+         else if (keyword == 'uedge_mesh') then
+            call read_uedge_mesh(diskin2,nxd,nzd,mesh_xz)
+         end if
+
+      else if (keyword == 'wallfile') then
+         @<Read Wall File@>
+
+      else if (keyword == 'print_min_max') then
+         call find_min_max(num_nodes,nodes,node_type,x_min,x_max,z_min,z_max)
+         write(stdout,*) ' X range = ',x_min,' -> ',x_max
+         write(stdout,*) ' Z range = ',z_min,' -> ',z_max
+
+      else if (keyword == 'bounds') then
+         @<Set Bounds@>
+
+      else if (keyword == 'symmetry') then
+         @<Set Symmetry@>
+
+      else if (keyword == 'print_walls') then
+         assert(next_token(line,b,e,p))
+         file_format=line(b:e)
+         if (next_token(line,b,e,p)) then
+            walloutfile=line(b:e)
+            nunit=diskout
+         else
+            walloutfile=char_undef
+            nunit=stdout
+         end if
+         call print_walls(nunit,file_format,walloutfile,num_walls,
+     $        wall_element_count,wall_nodes,nodes)
+
+      else if (keyword == 'end_prep') then
+         @<End Prep@>
+
+      else if (keyword == 'new_zone') then
+         zone++
+         assert(next_token(line,b,e,p))
+         new_zone_type=line(b:e)
+
+      else if (keyword == 'new_polygon') then
+         @<New Polygon@>
+
+      else if (keyword == 'polygon_nc_file') then
+         assert(next_token(line,b,e,p))
+         if (line(b:e) == 'none' || line(b:e) == 'NONE') then
+            write_poly_nc=FALSE
+         else
+            polygon_nc_file=line(b:e)
+         end if
+
+      else if (keyword == 'quit' || keyword == 'end') then
+         go to eof
+      end if
+      go to loop1
+
+eof:  continue
+      close(unit=diskin)
+
+      var_reallocb(g2_polygon_xz)
+      var_reallocb(g2_polygon_points)
+      var_reallocb(g2_polygon_zone)
+
+      if (write_poly_nc == TRUE) then
+         fileid=nccreate(trim(polygon_nc_file),NC_CLOBBER,nc_stat)
+         g2_ncdef(fileid)
+         call ncendef(fileid,nc_stat)
+         g2_ncwrite(fileid)
+         call ncclose(fileid,nc_stat)
+      end if
+
+      if (keyword == 'end') then
+         call boundaries_neighbors
+
+         call default_sectors(g2_num_polygons,g2_polygon_points,
+     $        g2_polygon_xz,g2_polygon_zone,poly_int_props,poly_real_props)
+      
+         call diag_sector_setup
+
+         call end_sectors
+
+         call null_detector_setup
+
+         call end_detectors
+
+         call check_geometry
+
+         call write_geometry
+
+         call erase_geometry
+      end if
+
+      return
+      end
+
+@ Set dimensions of universal cell.
+
+@<Set Bounds@>=
+      assert(next_token(line,b,e,p))
+      xb_min=read_real(line(b:e))
+      assert(next_token(line,b,e,p))
+      xb_max=read_real(line(b:e))
+      assert(next_token(line,b,e,p))
+      zb_min=read_real(line(b:e))
+      assert(next_token(line,b,e,p))
+      zb_max=read_real(line(b:e))
+      if (next_token(line,b,e,p)) then
+         yb_min=read_real(line(b:e))
+         assert(next_token(line,b,e,p))
+         yb_max=read_real(line(b:e))
+      else
+         yb_min=zero
+         yb_max=one
+      end if
+
+@ Set symmetry parameter.
+
+@<Set Symmetry@>=
+      assert(next_token(line,b,e,p))
+      if (line(b:e) == 'cylindrical') then
+         symmetry=geometry_symmetry_cylindrical
+      else if (line(b:e) == 'plane') then
+         symmetry=geometry_symmetry_plane
+      else if (line(b:e) == 'oned') then
+         symmetry=geometry_symmetry_oned
+      else
+         assert('Unexpected symmetry specification' == ' ')
+      end if
+
+@ End preparation stage.
+
+@<End Prep@>=
+      var_reallocb(element_nodes)
+      var_reallocb(element_missing)
+      var_reallocb(element_assigned)
+
+      var_reallocb(nodes)
+      var_reallocb(node_type)
+      var_reallocb(node_element_count) 
+
+      var_reallocb(wall_nodes)
+      var_reallocb(wall_elements)
+      var_reallocb(wall_element_count)
+
+      call init_geometry
+      
+      if (symmetry == geometry_symmetry_cylindrical) then
+         yb_max=two*PI
+      else if (symmetry == geometry_symmetry_plane 
+     $        || symmetry == geometry_symmetry_oned) then
+         yb_max=one
+      end if
+      vc_set(min_corner,xb_min,yb_min,zb_min)
+      vc_set(max_corner,xb_max,yb_max,zb_max)
+      call universal_cell(symmetry,min_corner,max_corner,vol)
+
+      if (nxd*nzd > 0) then
+         @<Set Mesh Polygons@>
+      end if
+      prep_done=TRUE
+
+@* Read and process DG file.
+
+@<Process DG File@>=
+      assert(next_token(line,b,e,p))
+      open_file(diskin2,line(b:e))
+/*
+   Read DG's .dgo file
+*/    
+      ielement=0
+      section=sec_undef
+/*
+   Assume that if the file has a ``.dgo'' that it came from DG and needs
+   to be converted from mm to meters. Assume that it is otherwise in meters.
+*/
+      if (index(line(b:e),'.dgo') > 0) then
+         mult=const(1.,-3)
+      else
+         mult=one
+      end if
+
+dg_loop: continue
+      if (read_string(diskin2,line,length)) then
+         assert(length<=len(line))
+/*
+   We do not want to have to manually change the format of the files
+   DG writes. The node coordinates are currently comma-delimited (with
+   possible additional spaces). Replace the commas in the current line
+   with spaces so we can use our usual string utilities.
+*/
+         do i=1,length
+            if (line(i:i) == ',') line(i:i)=' '
+         end do
+         length=parse_string(line(:length))
+         p=0
+         assert(next_token(line,b,e,p))
+         if (line(b:e) == 'p1') then
+            section=sec_p1
+         else if (line(b:e) == 'p2') then
+            section=sec_p2
+         else if (line(b:e) == 'misselem') then
+            section=sec_miss
+/*
+ ADD SECTION TO READ jedgi1, jedgo2, jedgo1, jedgi2 SECTIONS AND PROCESS
+*/
+         else if (line(b:e) == 'finish') then
+            section=sec_done
+         else
+            if (section == sec_p1 || section == sec_p2) then
+               temp_x=read_real_soft_fail(line(b:e)) 
+               if (temp_x != real_undef) then    // Failure
+                  assert(next_token(line,b,e,p))
+                  temp_z=read_real_soft_fail(line(b:e))
+               end if
+               if (temp_x == real_undef || temp_z == real_undef) then
+                  section=sec_undef
+                  go to dg_loop // Can trash this line since it did not match anything we've planned for
+               end if
+               temp_x*=mult
+               temp_z*=mult
+            
+               inode=0
+               if (num_nodes > 0) then
+                  do i=1,num_nodes
+                     if (nodes[i][g2_x] == temp_x) then
+                        if (nodes[i][g2_z] == temp_z) then
+                           assert(inode == 0)
+                           inode=i             // is a duplicate
+                        end if
+                     end if
+                  end do
+               end if
+               if (inode == 0) then
+                  increment_num_nodes           // is a new node
+                  inode=num_nodes
+                  nodes[num_nodes][g2_x]=temp_x
+                  nodes[num_nodes][g2_z]=temp_z
+               end if
+      
+               if (section == sec_p1) then
+                  increment_num_elements
+                  element_nodes[num_elements][element_start]=inode
+                  element_missing[num_elements]=FALSE // will be set later
+                  element_assigned[num_elements]=FALSE
+               else if (section == sec_p2) then
+                  ielement++
+                  element_nodes[ielement][element_end]=inode
+               end if
+            else if (section == sec_miss) then
+               assert(ielement == num_elements) // Compare p1 and p2 reads
+               miss_elem=read_int_soft_fail(line(b:e))
+               if (miss_elem > 0 && miss_elem <= num_elements) then
+                  element_missing[miss_elem]=TRUE
+               else
+                  assert(miss_elem == int_undef) // Assume we've stumbled into another section
+                  section=sec_undef  
+                  go to dg_loop
+               end if
+            end if
+         end if
+         if (section != sec_done) go to dg_loop
+      end if
+      close(unit=diskin2)
+/*
+   Now have elements and nodes. Characterize all of the nodes.
+*/
+      do inode=1,num_nodes
+         node_element_count[inode]=0
+         start=FALSE
+         end=FALSE
+         do ielement=1,num_elements
+            if (element_missing[ielement] == FALSE) then
+               if (element_nodes[ielement][element_start] == inode) then
+                  node_element_count[inode]++
+                  start=TRUE
+               else if (element_nodes[ielement][element_end] == inode) then
+                  node_element_count[inode]++
+                  end=TRUE
+               end if
+            end if
+         end do
+         if (node_element_count[inode] == 0) then
+            node_type[inode]=node_no_elements
+         else if (node_element_count[inode] == 1) then
+            assert(start == TRUE || end == TRUE)
+            node_type[inode]=node_one_element
+         else if (node_element_count[inode] == 2) then
+            if (start == TRUE && end == TRUE) then
+               node_type[inode]=node_regular
+            else
+               node_type[inode]=node_mixed_normals
+            end if
+         else if (node_element_count[inode] > 2) then
+            node_type[inode]=node_many_elements
+         end if
+      end do
+/*
+   Set up the walls. First, start walls at all
+   irregular nodes that start an element.
+*/
+      do inode=1,num_nodes
+         if (node_type[inode] != node_regular 
+     $        && node_type[inode] != node_no_elements) then
+            do ielement=1,num_elements
+               if (element_nodes[ielement][element_start] == inode) then
+                  increment_num_walls
+                  wall_elements[num_walls][1]=ielement
+                  wall_nodes[num_walls][0]=inode
+                  element_assigned[ielement]=TRUE
+               end if
+            end do
+         end if
+      end do
+/*
+   Next, follow each of those walls until they hit another irregular node.
+*/
+      do iwall=1,num_walls
+         iseg=1
+wall_loop: continue
+         inode=element_nodes[wall_elements[iwall][iseg]][element_end]
+         assert(inode > 0 && inode <= num_nodes)
+         wall_nodes[iwall][iseg]=inode
+         if (node_type[inode] == node_regular) then
+            iseg++
+            assert(iseg <= g2_num_points)
+            wall_elements[iwall][iseg]=0
+            do ielement=1,num_elements
+               if (element_nodes[ielement][element_start] == inode) then
+                  assert(wall_elements[iwall][iseg] == 0)
+                  wall_elements[iwall][iseg]=ielement
+                  element_assigned[ielement]=TRUE
+                  go to wall_loop
+               end if
+            end do
+         else          // End the wall at the next irregular node.
+            wall_element_count[iwall]=iseg
+         end if
+      end do
+/*
+   Finally, follow all other elements connected only by regular nodes (these
+   should be closed surfaces).
+*/
+      do ielement=1,num_elements
+         if (element_missing[ielement] == FALSE 
+     $        && element_assigned[ielement] == FALSE) then
+            increment_num_walls                  // An unassigned element...
+            wall_elements[num_walls][1]=ielement
+            wall_nodes[num_walls][0]=element_nodes[ielement][element_start]
+            element_assigned[ielement]=TRUE
+            iseg=1
+wall_loop2: continue
+            inode=element_nodes[wall_elements[num_walls][iseg]][element_end]
+            assert(inode > 0 && inode <= num_nodes)
+            wall_nodes[num_walls][iseg]=inode
+            assert(node_type[inode] == node_regular)
+/* 
+   Search for adjacent element. Can start at |ielement|+1 because all 
+   previous elements have been assigned. If it has already been
+   assigned, we're done with this wall.
+*/
+            do ielement2=ielement+1,num_elements
+               if ((element_nodes[ielement2][element_start] == inode) 
+     $              && (element_assigned[ielement2] == FALSE)) then
+                  iseg++
+                  assert(iseg <= g2_num_points)
+                  wall_elements[num_walls][iseg]=ielement2
+                  element_assigned[ielement2]=TRUE
+                  go to wall_loop2
+               end if
+            end do  
+            wall_element_count[num_walls]=iseg   // End of this wall
+
+         end if
+      end do
+
+@#if 0
+// Move to after end of prep. stage. OK?
+      var_reallocb(wall_nodes)
+      var_reallocb(wall_elements)
+      var_reallocb(wall_element_count)
+@#endif
+
+@* Read wall file. This is intended to duplicate the wallfile functionality
+provided in |readgeometry|. At the same time, this format should allow
+a file generated with the ``linear'' format of this code's 
+|print_walls| keyword to be read back in. Hence, the numbers on the
+second line of the file represent the {\bf number of points, not
+the number of segments}, as was the case in |readgeometry|. The points
+listed are checked against the existing list of nodes. If new, they are
+added. Either way, the new walls are stored as a list of nodes, just as
+are those generated from a DG file. Note that we presently make no 
+attempt to update the elements. Only the node numbers and coordinates
+are used later in the code.
+
+@<Read Wall File@>=
+
+      assert(next_token(line,b,e,p))
+      wallinfile=line(b:e)
+      open(unit=diskin2,file=wallinfile,status='old',form='formatted')
+
+      read(diskin2,*) num_new_walls
+      var_reallocc(wall_nodes,num_walls,num_walls+num_new_walls)
+      var_reallocc(wall_elements,num_walls,num_walls+num_new_walls) // not used
+      var_reallocc(wall_element_count,num_walls,num_walls+num_new_walls)
+
+      read(diskin2,*) SP
+     $     (wall_element_count[num_walls+iwall],iwall=1,num_new_walls)
+      do iwall=num_walls+1,num_walls+num_new_walls
+         wall_element_count[iwall]--         // |iseg| starts at 0
+         do iseg=0,wall_element_count[iwall]
+            read(diskin2,*) x_wall,z_wall
+
+            do inode=1,num_nodes
+               if ((abs(x_wall - nodes[inode][g2_x]) < geom_epsilon) 
+     $              && (abs(z_wall - nodes[inode][g2_z]) < geom_epsilon)) then
+                  this_node=inode
+                  go to wall_break
+               end if
+            end do
+            increment_num_nodes
+            nodes[num_nodes][g2_x]=x_wall
+            nodes[num_nodes][g2_z]=z_wall
+            this_node=num_nodes
+
+wall_break: continue
+            wall_nodes[iwall][iseg]=this_node
+         end do
+      end do
+      num_walls+=num_new_walls
+
+      close(unit=diskin2)
+
+@* Convert mesh data into polygons.
+
+@<Set Mesh Polygons@>=
+/*
+  A separate question is the direction around the {\em physical}
+  rectangle. The polygon sent to |decompose_polygon| must be traversed
+  in a clockwise direction in physical space.
+*/
+           vc_set(yhat,zero,one,zero)
+           vc_set(test_vec_1,mesh_xzm(g2_x,2,1,1)-mesh_xzm(g2_x,1,1,1),zero,
+     $                       mesh_xzm(g2_z,2,1,1)-mesh_xzm(g2_z,1,1,1))
+           vc_set(test_vec_2,mesh_xzm(g2_x,3,1,1)-mesh_xzm(g2_x,2,1,1),zero,
+     $                       mesh_xzm(g2_z,3,1,1)-mesh_xzm(g2_z,2,1,1))
+           vc_cross(test_vec_1,test_vec_2,test_vec_3)
+           if (vc_product(test_vec_3,yhat) > zero) then
+              mesh_sense=1
+           else if(vc_product(test_vec_3,yhat) < zero) then
+              mesh_sense=2
+           else
+              assert('First cell of mesh degenerate' == ' ')
+           end if
+           do ix=1,nxd
+              do iz=1,nzd
+                 zone++
+                 n=0
+                 increment_g2_num_polygons
+
+                 g2_polygon_xz[g2_num_polygons][n][g2_x]
+     $                = mesh_xzm(g2_x,1,ix,iz)
+                 g2_polygon_xz[g2_num_polygons][n][g2_z]
+     $                = mesh_xzm(g2_z,1,ix,iz);         n++
+
+                 if (mesh_sense == 1) then
+                    g2_polygon_xz[g2_num_polygons][n][g2_x]
+     $                   = mesh_xzm(g2_x,2,ix,iz)
+                    g2_polygon_xz[g2_num_polygons][n][g2_z]
+     $                   = mesh_xzm(g2_z,2,ix,iz);         n++
+                    g2_polygon_xz[g2_num_polygons][n][g2_x]
+     $                   = mesh_xzm(g2_x,3,ix,iz)
+                    g2_polygon_xz[g2_num_polygons][n][g2_z]
+     $                   = mesh_xzm(g2_z,3,ix,iz);         n++
+                    g2_polygon_xz[g2_num_polygons][n][g2_x]
+     $                   = mesh_xzm(g2_x,4,ix,iz)
+                    g2_polygon_xz[g2_num_polygons][n][g2_z]
+     $                   = mesh_xzm(g2_z,4,ix,iz);         n++
+
+                 else if (mesh_sense == 2) then
+                    g2_polygon_xz[g2_num_polygons][n][g2_x]
+     $                   = mesh_xzm(g2_x,4,ix,iz)
+                    g2_polygon_xz[g2_num_polygons][n][g2_z]
+     $                   = mesh_xzm(g2_z,4,ix,iz);         n++
+                    g2_polygon_xz[g2_num_polygons][n][g2_x]
+     $                   = mesh_xzm(g2_x,3,ix,iz)
+                    g2_polygon_xz[g2_num_polygons][n][g2_z]
+     $                   = mesh_xzm(g2_z,3,ix,iz);         n++
+                    g2_polygon_xz[g2_num_polygons][n][g2_x]
+     $                   = mesh_xzm(g2_x,2,ix,iz)
+                    g2_polygon_xz[g2_num_polygons][n][g2_z]
+     $                   = mesh_xzm(g2_z,2,ix,iz);         n++
+               else
+                  assert('mesh_sense improperly set' == ' ')
+               end if
+               g2_polygon_xz[g2_num_polygons][n][g2_x]
+     $              = g2_polygon_xz[g2_num_polygons][0][g2_x]
+               g2_polygon_xz[g2_num_polygons][n][g2_z]
+     $              = g2_polygon_xz[g2_num_polygons][0][g2_z]
+               g2_polygon_points[g2_num_polygons]=n
+               g2_polygon_zone[g2_num_polygons]=zone
+/*
+   These are really not used for solid zones and will probably
+   contain the default values.
+*/
+               do i_prop=1,poly_int_max
+                  poly_int_props[g2_num_polygons][i_prop]
+     $                 =current_int_props[i_prop]
+               end do
+               do i_prop=1,poly_real_max
+                  poly_real_props[g2_num_polygons][i_prop]
+     $                 =current_real_props[i_prop]
+               end do
+
+               call decompose_polygon(n,
+     $              g2_polygon_xz[g2_num_polygons][0][g2_x],zone,1,0)
+               vc_set(center,mesh_xzm(g2_x,0,ix,iz),zero,
+     $              mesh_xzm(g2_z,0,ix,iz))
+               call update_zone_info(zone,ix,iz,"plasma",n,
+     $              g2_polygon_xz[g2_num_polygons][0][g2_x],center)
+            enddo
+         enddo
+
+@* Specify and break up a new polygon.
+
+@<New Polygon@>=
+      assert(prep_done == TRUE)
+      process_polygon=clear_polygon
+      call specify_polygon(diskin,num_walls,wall_element_count,wall_nodes,
+     $     nodes,xb_min,xb_max,zb_min,zb_max,nxd,nzd,mesh_xz,
+     $     temp_polygon[0][g2_x],n,temp_int_props,
+     $     temp_real_props,process_polygon)
+      if (process_polygon != clear_polygon) then
+         ix=0
+         iz=0
+         do i_prop=1,poly_int_max
+            if (temp_int_props[i_prop] != int_uninit)
+     $           current_int_props[i_prop]=temp_int_props[i_prop]
+         end do
+         do i_prop=1,poly_real_max
+            if (temp_real_props[i_prop] != real_uninit)
+     $           current_real_props[i_prop]=temp_real_props[i_prop]
+         end do
+
+         if (process_polygon == breakup_polygon) then
+
+            increment_g2_num_polygons
+            do i=0,n
+               g2_polygon_xz[g2_num_polygons][i][g2_x]=temp_polygon[i][g2_x]
+               g2_polygon_xz[g2_num_polygons][i][g2_z]=temp_polygon[i][g2_z]
+            end do
+            g2_polygon_points[g2_num_polygons]=n
+            g2_polygon_zone[g2_num_polygons]=zone
+            do i_prop=1,poly_int_max
+               poly_int_props[g2_num_polygons][i_prop]
+     $              =current_int_props[i_prop]
+            end do
+            do i_prop=1,poly_real_max
+               poly_real_props[g2_num_polygons][i_prop]
+     $              =current_real_props[i_prop]
+            end do
+            call decompose_polygon(n,
+     $           g2_polygon_xz[g2_num_polygons][0][g2_x],zone,1,0)
+/*
+   Just set the center to the first point so that it has a nontrivial
+   value. The anticipation is that it will never be used in this case
+   (i.e., zones for which the center location is needed will likely have
+   been either specified as quadrilaterals or broken into triangles).
+*/
+            vc_set(center,temp_polygon[0][g2_x],zero,temp_polygon[0][g2_z])
+            call update_zone_info(zone,ix,iz,new_zone_type,n,
+     $           g2_polygon_xz[g2_num_polygons][0][g2_x],center)
+
+         else if (process_polygon == triangulate_polygon 
+     $           || process_polygon == triangulate_to_zones) then
+
+            if (process_polygon == triangulate_to_zones) then
+               refine=TRUE     // we care
+            else
+               refine=FALSE    // we're just breaking 'em up.
+            end if
+            call poly2triangles(n,temp_polygon[0][g2_x],refine,
+     $           ntriangles,temp_triangles[0][0][g2_x])
+            assert(ntriangles < g2_num_points)
+            n=3    // Number of points in a triangle !
+            do j=0,ntriangles-1
+               increment_g2_num_polygons
+               do i=0,n
+                  g2_polygon_xz[g2_num_polygons][i][g2_x]=
+     $                 temp_triangles[j][i][g2_x]
+                  g2_polygon_xz[g2_num_polygons][i][g2_z]=
+     $                 temp_triangles[j][i][g2_z]
+               end do
+               g2_polygon_points[g2_num_polygons]=n
+               if (process_polygon == triangulate_to_zones && j > 0) 
+     $              zone=zone+1
+               g2_polygon_zone[g2_num_polygons]=zone
+               do i_prop=1,poly_int_max
+                  poly_int_props[g2_num_polygons][i_prop]
+     $                 =current_int_props[i_prop]
+               end do
+               do i_prop=1,poly_real_max
+                  poly_real_props[g2_num_polygons][i_prop]
+     $                 =current_real_props[i_prop]
+               end do
+               call decompose_polygon(n,
+     $              g2_polygon_xz[g2_num_polygons][0][g2_x],zone,1,0)
+               if (j == 0 || process_polygon == triangulate_to_zones)
+     $              call triangle_centroid(temp_triangles[j][0][g2_x],center)
+               call update_zone_info(zone,ix,iz,new_zone_type,n,
+     $              g2_polygon_xz[g2_num_polygons][0][g2_x],center)
+            end do
+         end if
+      end if
+
+@* Read Sonnet format mesh.
+
+@m sonnet_loop #:0
+@m sonnet_eof #:0
+
+@<Functions...@>=
+      subroutine read_sonnet_mesh(nunit,nxd,nzd,mesh_xz)
+
+      implicit_none_f77
+      implicit_none_f90
+
+      integer nunit,nxd,nzd                                 // Input
+
+      real mesh_xz[nzd][nxd][0:4][g2_x:g2_z]                // Output
+
+      character*LINELEN line                                // Local
+      integer length,ix,iz,ixl,izl
+
+      st_decls
+
+sonnet_loop: continue
+      assert(read_string(nunit,line,length))
+      assert(length<=len(line))
+      length=parse_string(line(:length))
+      if (index(line,'===') == 0) go to sonnet_loop
+
+      do iz=1,nzd
+         do ix=1,nxd
+/*
+   The specific ordering to be used in the rest of this code is that a 
+   polygon will be traced out in the clockwise direction by following
+   the corners in order $0 \rightarrow 4$. The corners used here with
+   |mesh_x| and |mesh_z| are chosen so as to translate the known orientation 
+   of the Sonnet mesh corners into the desired one.
+*/
+            read(nunit,'(19x,i3,1x,i3,4x,e17.10,1x,e17.10,8x,e17.10,1x,e17.10)') 
+     $           ixl,izl,mesh_xz[iz][ix][2][g2_x],mesh_xz[iz][ix][2][g2_z],
+     $           mesh_xz[iz][ix][3][g2_x],mesh_xz[iz][ix][3][g2_z]
+            assert(ixl == ix-1)
+            assert(izl == iz-1)
+            read(nunit,'(49x,e17.10,1x,e17.10)')
+     $           mesh_xz[iz][ix][0][g2_x],mesh_xz[iz][ix][0][g2_z]
+            read(nunit,'(30x,e17.10,1x,e17.10,8x,e17.10,1x,e17.10)')
+     $           mesh_xz[iz][ix][1][g2_x],mesh_xz[iz][ix][1][g2_z],
+     $           mesh_xz[iz][ix][4][g2_x],mesh_xz[iz][ix][4][g2_z]
+            read(nunit,*,err=sonnet_eof)
+         end do
+      end do
+                  
+      return
+
+sonnet_eof: continue
+      assert(' Problem reading sonnet mesh; unexpected end of file' == ' ')
+      write(stderr,*) ' Problem reading sonnet mesh; unexpected end of file'
+
+      return
+      end
+
+@* Read mesh file from UEDGE.
+
+@<Functions...@>=
+      subroutine read_uedge_mesh(nunit,nxd,nzd,mesh_xz)
+
+      implicit_none_f77
+      implicit_none_f90
+
+      integer nunit,nxd,nzd                                 // Input
+
+      real mesh_xz[nzd][nxd][0:4][g2_x:g2_z]                // Output
+
+      
+      integer ix,iz,i                                       // Local
+      integer corner_ptr[0:4]
+/*
+  Have decided to not deal with this information explicitly here.
+  The main reason for doing this is that we need to know the null type
+  to decide which parameters will appear here and that information is
+  assumed to be known. Consistency checks of the geometry will be performed
+  at the end.
+*/
+      read(nunit,*)   // |xcut1|
+      read(nunit,*)   // |xcut2|
+      read(nunit,*)   // |zcut|
+/*
+   The specific ordering to be used in the rest of this code is that a 
+   polygon will be traced out in the clockwise direction by following
+   the corners in order $0 \rightarrow 4$. The |corner_ptr| array is
+   used to translate the known orientation of UEDGE mesh corners into the
+   desired one.
+*/
+      corner_ptr[0]=0              
+      corner_ptr[1]=1
+      corner_ptr[2]=4
+      corner_ptr[3]=2
+      corner_ptr[4]=3
+
+      read(nunit,*) SP (((mesh_xz[iz][ix][corner_ptr[i]][g2_x],ix=1,nxd),iz=1,nzd),
+     $     i=0,4)
+      read(nunit,*) SP (((mesh_xz[iz][ix][corner_ptr[i]][g2_z],ix=1,nxd),iz=1,nzd),
+     $     i=0,4)
+
+      return
+      end
+
+@* Compute minimum and maximum coordinates. Search |nodes| array for maximum
+and minimum coordinate values that have been entered so far. These can then
+be used in setting the arguments of the |bounds| keyword.
+
+@<Functions...@>=
+      subroutine find_min_max(num_nodes,nodes,node_type,
+     $                        x_min,x_max,z_min,z_max)
+
+      implicit_none_f77
+      implicit_none_f90
+
+      integer num_nodes                            // Input
+      integer node_type[*]
+      real nodes[*][g2_x:g2_z]
+
+      real x_min,x_max,z_min,z_max                 // Output
+
+      integer inode                                // Local
+
+      x_min=const(1.,5)
+      x_max=zero
+      z_min=const(1.,5)
+      z_max=zero
+      
+      do inode=1,num_nodes
+         if (node_type[inode] != node_no_elements) then
+            x_min=min(x_min,nodes[inode][g2_x])
+            x_max=max(x_max,nodes[inode][g2_x])
+            z_min=min(z_min,nodes[inode][g2_z])
+            z_max=max(z_max,nodes[inode][g2_z])
+         end if
+      end do
+
+      assert(x_max > x_min)
+      assert(z_max > z_min)
+
+      return
+      end
+
+@* Print wall coordinates to a file for user examination. There are two
+possible formats. The first (``tabular'') has the walls laid out in
+successive columns, suitable for plotting with an external program.
+The second (``linear'') is consistent with the format used by the 
+``wallfile'' keyword. The user can provide the name of the file. If absent,
+the data are written to stdout.
+
+@m table_size 4    // Walls per table section
+
+@<Functions...@>=
+      subroutine print_walls(nunit,file_format,walloutfile,num_walls,
+     $                       wall_element_count,wall_nodes,nodes)
+
+      implicit_none_f77
+      implicit_none_f90
+
+      integer nunit,num_walls                             // Input         
+      integer wall_element_count[*], 
+     $     wall_nodes[*][0:g2_num_points-1]
+      real nodes[*][g2_x:g2_z]
+      character*LINELEN file_format
+      character*FILELEN walloutfile
+
+      integer num_sections,isec,istart,iend,max_segs,      // Local
+     $     iwall,iseg,inode,b,e
+      character*1 csec
+      character*130 wall_line      // Holds |table_size| (i.e., 4) pairs
+      character*30 wall_chunk      // Space to write $x$,$z$ pair
+      
+      st_decls
+
+      if (file_format == 'linear') then
+         if (walloutfile != char_undef) then
+            open(unit=nunit,file=trim(walloutfile),status='unknown')
+         end if
+         write(nunit,*) num_walls
+         write(nunit,*) SP (wall_element_count[iwall]+1,iwall=1,num_walls)
+         do iwall=1,num_walls
+            do iseg=0,wall_element_count[iwall]
+               inode=wall_nodes[iwall][iseg]
+               write(nunit,'(1x,1pe14.6,2x,e14.6)') nodes[inode][g2_x],
+     $              nodes[inode][g2_z]
+            end do
+         end do
+
+      else if (file_format == 'tabular') then
+         num_sections=(num_walls/table_size)
+         if (num_sections*table_size < num_walls) then
+            num_sections++
+         else if (num_sections*table_size > num_walls) then
+            assert('Problem calculating num_sections' == ' ')
+         end if
+         do isec=1,num_sections
+            if (walloutfile != char_undef) then
+               write(csec,'(i1)') isec
+               open(unit=nunit,file=trim(walloutfile) \/ csec,status='unknown')
+            end if
+            istart=table_size*(isec-1) + 1
+            iend=min(table_size*isec,num_walls)
+            max_segs=0
+            do iwall=istart,iend
+               max_segs=max(max_segs,wall_element_count[iwall])
+            end do
+            do iseg=-1,max_segs
+               wall_line = '  '
+               b=1
+               e=2
+               do iwall=istart,iend
+                  if (iseg == -1) then 
+                     write(wall_chunk,'(5x,a,i2.2,11x,a,i2.2,6x)') 'X_',
+     $                    iwall,'Z_',iwall
+                  else if (iseg <= wall_element_count[iwall]) then
+                     inode=wall_nodes[iwall][iseg]
+                     write(wall_chunk,'(1pe14.6,1x,e14.6,2x)') 
+     $                    nodes[inode][g2_x],nodes[inode][g2_z]
+                  else
+/*
+   KaleidaGraph likes using periods to denote empty data cells. It
+   appears that Excel can live with them as well.
+*/
+                     write(wall_chunk,'(7x,a,14x,a,7x)') '.','.'
+                  end if
+                  wall_line = wall_line(b:e) \/ wall_chunk
+                  e+=30
+               end do
+               write(nunit,*) wall_line(b:e)
+            end do
+            if (walloutfile == char_undef) then
+               write(nunit,*)
+               write(nunit,*) '--------------------------------------------------------'
+               write(nunit,*)
+            else
+               close(unit=diskout)
+            end if
+         end do
+      else
+         write(stderr,*) ' The format for the wall file must be either "linear" or "tabular"'
+      end if
+
+      return
+      end
+
+@* Read input lines specifying a polygon.
+
+@m poly_loop #:0
+@m outer_loop #:0
+
+@<Functions...@>=
+      subroutine specify_polygon(nunit,num_walls,wall_element_count,
+     $                           wall_nodes,nodes,xb_min,xb_max,zb_min,
+     $                           zb_max,nxd,nzd,mesh_xz,polygon,n,
+     $                           int_props,real_props,process_polygon)
+
+      implicit_none_f77
+      ma_common                                              // Common
+      implicit_none_f90
+
+      integer nunit,num_walls,nxd,nzd                        // Input  
+      integer wall_element_count[*], 
+     $     wall_nodes[*][0:g2_num_points-1]
+      real xb_min,xb_max,zb_min,zb_max
+      real nodes[*][g2_x:g2_z],mesh_xz[nzd][nxd][0:4][g2_x:g2_z]
+
+      integer n,process_polygon                               // Output
+      integer int_props[1:poly_int_max]
+      real polygon[0:g2_num_points-1][g2_x:g2_z],real_props[1:poly_real_max]
+
+      integer length,p,b,e,i,wall,start,stop,temp,            // Local
+     $     ix_start,ix_stop,iz_start,iz_stop,ix_step,iz_step,
+     $     corner,ixi,izi,num,ix,iz,nout,step,i_prop
+      character*FILELEN polyoutfile
+      character*LINELEN line,keyword
+
+      st_decls
+
+      n=0
+/*
+   Set these to peculiar values. If not explicitly set in this routine,
+   they will be overridden by the ``current'' values in the calling routine.
+*/
+      do i_prop=1,poly_int_max
+         int_props[i_prop]=int_uninit
+      end do
+      do i_prop=1,poly_real_max
+         real_props[i_prop]=real_uninit
+      end do
+
+poly_loop: continue
+      assert(read_string(diskin,line,length))
+      assert(length<=len(line))
+      length=parse_string(line(:length))
+      p=0
+      assert(next_token(line,b,e,p))
+      keyword=line(b:e)
+
+      if (keyword == 'outer') then
+         @<Outer Keyword@>
+
+      else if (keyword == 'wall') then
+         @<Wall Keyword@>
+
+      else if (keyword == 'edge') then
+         @<Edge Keyword@>
+
+      else if (keyword == 'stratum') then 
+         assert(next_token(line,b,e,p))
+         int_props[poly_stratum]=read_integer(line(b:e))
+
+      else if (keyword == 'material') then
+         assert(next_token(line,b,e,p))
+         int_props[poly_material]=ma_lookup(line(b:e))
+         assert(ma_check(int_props[poly_material]))
+
+      else if (keyword == 'temperature') then
+         assert(next_token(line,b,e,p))
+         real_props[poly_temperature]=read_real(line(b:e))
+         assert(real_props[poly_temperature] > zero)
+
+      else if (keyword == 'recyc_coef') then
+         assert(next_token(line,b,e,p))
+         real_props[poly_recyc_coef]=read_real(line(b:e))
+         assert(real_props[poly_recyc_coef] > zero 
+     $        && real_props[poly_recyc_coef] <= one)
+
+      else if (keyword == 'print_polygon') then
+         if (next_token(line,b,e,p)) then
+            polyoutfile=line(b:e)
+            nout=diskout
+         else
+            polyoutfile=char_undef
+            nout=stdout
+         end if
+         if (polyoutfile != char_undef) then
+            open(unit=nout,file=trim(polyoutfile),status='unknown')
+         end if
+         write(nout,'(8x,a,15x,a)') 'X','Z'
+         do i=0,n-1
+            write(nout,'(1x,1pe14.6,2x,e14.6)') polygon[i][g2_x],
+     $           polygon[i][g2_z]
+         end do
+
+      else if (keyword == 'breakup_polygon') then
+         polygon[n][g2_x]=polygon[0][g2_x]
+         polygon[n][g2_z]=polygon[0][g2_z]
+         process_polygon=breakup_polygon
+         return
+         
+      else if (keyword == 'triangulate_polygon') then
+         polygon[n][g2_x]=polygon[0][g2_x]
+         polygon[n][g2_z]=polygon[0][g2_z]
+         process_polygon=triangulate_polygon
+         return
+
+      else if (keyword == 'triangulate_to_zones') then
+         polygon[n][g2_x]=polygon[0][g2_x]
+         polygon[n][g2_z]=polygon[0][g2_z]
+         process_polygon=triangulate_to_zones
+         return
+
+      else if (keyword == 'clear_polygon') then
+         process_polygon=clear_polygon
+         return
+
+      else
+         write(stderr,*) ' Unexpected polygon keyword'
+         return
+
+      end if
+
+      go to poly_loop
+
+      end
+
+@ Add points along universal cell to current polygon.
+
+@<Outer Keyword@>=
+outer_loop: continue
+         if (next_token(line,b,e,p)) then
+            i=read_integer(line(b:e))
+            if (i==0 || i==4) then
+               polygon[n][g2_x]=xb_min
+               polygon[n][g2_z]=zb_min
+            else if (i == 1) then
+               polygon[n][g2_x]=xb_min
+               polygon[n][g2_z]=zb_max
+            else if (i == 2) then
+               polygon[n][g2_x]=xb_max
+               polygon[n][g2_z]=zb_max
+            else if (i == 3) then
+               polygon[n][g2_x]=xb_max
+               polygon[n][g2_z]=zb_min
+            end if
+            n++
+            assert(n <= g2_num_points-1)
+            go to outer_loop
+         end if
+
+@ Take points from a wall and add to current polygon.
+
+@<Wall Keyword@>=
+         assert(next_token(line,b,e,p))
+         wall=read_integer(line(b:e))
+         assert(next_token(line,b,e,p))
+         if (line(b:e) == '*') then
+            start=0
+            stop=wall_element_count[wall]
+         else 
+            start=read_integer(line(b:e))
+            assert(next_token(line,b,e,p))
+            if (line(b:e) == '*') then
+               stop=wall_element_count[wall]
+            else
+               stop=read_integer(line(b:e))
+            end if
+         end if
+         if (next_token(line,b,e,p)) then
+            assert(line(b:e) == 'reverse') 
+            temp=start
+            start=stop
+            stop=temp
+         end if
+         if (start <= stop) then
+            step=1
+         else if (start > stop) then
+            step=-1
+         end if
+
+         do i=start,stop,step
+            assert(i >= 0 && i <= wall_element_count[wall])
+            polygon[n][g2_x]=nodes[wall_nodes[wall][i]][g2_x]
+            polygon[n][g2_z]=nodes[wall_nodes[wall][i]][g2_z]
+            n++
+            assert(n <= g2_num_points-1)
+         end do
+
+@ Take points along a mesh edge and add to current polygon.
+
+@<Edge Keyword@>=
+         assert(next_token(line,b,e,p))
+         if (line(b:e) == '*') then
+            ix_start=0
+            ix_stop=nxd
+         else
+            ix_start=read_integer(line(b:e))
+            assert(next_token(line,b,e,p))
+            ix_stop=read_integer(line(b:e))
+         end if
+         assert(next_token(line,b,e,p))
+         if (line(b:e) == '*') then
+            iz_start=0  
+            iz_stop=nzd
+         else
+            iz_start=read_integer(line(b:e))
+            assert(next_token(line,b,e,p))
+            iz_stop=read_integer(line(b:e))
+         end if
+         if (next_token(line,b,e,p)) then
+            assert(line(b:e) == 'reverse')
+            temp=ix_start
+            ix_start=ix_stop
+            ix_stop=temp
+            temp=iz_start
+            iz_start=iz_stop
+            iz_stop=temp
+         end if
+
+         if (iz_stop == iz_start) then
+            iz_step=0
+            if (ix_stop >= ix_start) then
+               ix_step=1
+               num=ix_stop-ix_start+1
+            else
+               ix_step=-1
+               num=ix_start-ix_stop+1
+            end if
+         else if (ix_stop == ix_start) then
+            ix_step=0
+            if (iz_stop >= iz_start) then
+               iz_step=1
+               num=iz_stop-iz_start+1
+            else
+               iz_step=-1
+               num=iz_start-iz_stop+1
+            end if
+         else
+            assert(' Not following a mesh edge' == ' ')
+         end if
+
+         ix=ix_start
+         iz=iz_start
+         do i=1,num
+            if (ix == 0 && iz == 0) then
+               corner=1
+               ixi=1
+               izi=1
+            else if (ix == 0) then
+               corner=2
+               ixi=1
+               izi=iz
+            else if (iz == 0) then
+               corner=4
+               ixi=ix
+               izi=1
+            else
+               corner=3
+               ixi=ix
+               izi=iz
+            end if
+            polygon[n][g2_x]=mesh_xz[izi][ixi][corner][g2_x]
+            polygon[n][g2_z]=mesh_xz[izi][ixi][corner][g2_z]
+            ix+=ix_step
+            iz+=iz_step
+            n++
+         end do
+
+@* Fill in data for this zone. NOTE: the center point is set using the
+argument |center| from the first call to this routine for the current
+zone (i.e., the routine should be called for each polygon comprising
+a complex zone).
+
+@<Functions...@>=
+      subroutine update_zone_info(zone,ind_x,ind_z,new_zone_type,n,polygon,
+     $                            center)
+
+      implicit_none_f77
+      zn_common                                    // Common
+      implicit_none_f90
+
+      integer zone,ind_x,ind_z,n                   // Input
+      real polygon[0:g2_num_points-1][g2_x:g2_z]
+      character*(*) new_zone_type
+      vc_decl(center)
+
+      vc_decls
+      gi_ext
+
+      if (zn_volume(zone) == real_undef) then
+         zn_volume(zone)=zero
+         zn_index(zone,1)=ind_x
+         zn_index(zone,2)=ind_z
+         if (new_zone_type == "solid") then
+            zn_type_set(zone,zn_solid)
+         else if (new_zone_type == "exit") then
+            zn_type_set(zone,zn_exit)
+         else if (new_zone_type == "vacuum") then
+            zn_type_set(zone,zn_vacuum)
+         else if (new_zone_type == "plasma") then
+            zn_type_set(zone,zn_plasma)
+         else if (new_zone_type == "exit") then
+            zn_type_set(zone,zn_exit)
+         else
+            write(stderr,*) 'Unknown zone type: ',new_zone_type
+            assert(.false.)
+         end if
+         call set_zn_min_max(n,polygon[0][g2_x],zone,.true.)
+
+         vc_copy(center,zone_center[zone])
+
+      else
+         call set_zn_min_max(n,polygon[0][g2_x],zone,.false.)
+      end if
+      zn_volume(zone)=zn_volume(zone)+polygon_volume(n,polygon[0][g2_x])
+
+      return
+      end
+
+@* Find the centroid of a triangle. This is computed using the fact that the
+centroid (equivalently, the center of gravity and the intersection of the 
+medians) is at trilinear coordinates $\frac{1}{a}$ : $\frac{1}{b}$ :
+$\frac{1}{c}$, where $a$, $b$, and $c$ are the lengths of the sides of
+the triangles (for additional information see
+\verb+http://mathworld.wolfram.com/TrilinearCoordinates.html+).
+
+@<Functions...@>=
+      subroutine triangle_centroid(triangle,center)
+
+      implicit_none_f77
+      implicit_none_f90
+
+      real triangle[0:3][g2_x:g2_z]           // Input
+
+      vc_decl(center)                         // Output
+
+      real area,k,a,b,c,alpha,gamma,den,lc    // Local
+
+      vc_decl(a_vertex)
+      vc_decl(b_vertex)
+      vc_decl(c_vertex)
+      vc_decl(a_vec)
+      vc_decl(b_vec)
+      vc_decl(c_vec)
+      vc_decl(a_hat)
+      vc_decl(c_hat)
+      vc_decl(bc_cross)
+      vc_decl(c_perp)
+      vc_decl(neg_y)
+      vc_decl(m_test1)
+      vc_decl(m_test2)
+
+      vc_decls
+/*
+   Associate point 0 with vertex A, 1 with B, and 2 with C. Here are
+   the lengths of the sides.
+*/
+      vc_set(a_vertex,triangle[0][g2_x],zero,triangle[0][g2_z])
+      vc_set(b_vertex,triangle[1][g2_x],zero,triangle[1][g2_z])
+      vc_set(c_vertex,triangle[2][g2_x],zero,triangle[2][g2_z])
+/*
+   Vectors for two of the sides and the corresponding unit vectors.
+*/      
+      vc_difference(b_vertex,a_vertex,c_vec)
+      vc_unit(c_vec,c_hat)
+      vc_difference(c_vertex,b_vertex,a_vec)
+      vc_unit(a_vec,a_hat)
+/*
+   Perpendicular to $\hat{c}$, define using cross product to be
+   sure it's pointing the right direction.
+*/
+      vc_set(neg_y,zero,-one,zero)
+      vc_cross(c_hat,neg_y,c_perp)
+/*
+   Lengths of all 3 sides.
+*/
+      vc_difference(a_vertex,c_vertex,b_vec)
+      a=vc_abs(a_vec)
+      b=vc_abs(b_vec)
+      c=vc_abs(c_vec)
+/*
+   Area by using the cross product:
+*/
+      vc_cross(b_vec,c_vec,bc_cross)
+      area=half*vc_abs(bc_cross)
+/*
+   Use $\alpha$, $\beta$, $\gamma$ to denote the trilinear coordinate
+   values. A constant of proportionality $k$ relates these to the
+   distances of the points to the triangle sides. $k$ can be 
+   determined for any particular set of coordinates via the area of
+   the triangle.
+\[
+      k \equiv \frac{2 \Delta}{a \alpha + b \beta + c \gamma},
+\]
+   In the case of the centroid with $\alpha = 1/a$, etc., the denominator
+   is just 3.
+*/
+      alpha=one/a
+      gamma=one/c
+      k=two*area/const(3.)
+/*
+   The vectors used in the Web page referred to in the introduction to this
+   routine do not appear to be a consistent set. The vectors
+   we use here along the sides trace out the triangle in a clockwise direction.
+   The Cartesian coordinates of the point of interest are written in terms
+   of some distance $l_{c}$ along side $c$ (starting at vertex A) 
+   plus a distance $k \gamma$ along
+   $\hat{c}_{\perp}$ (by definition of $\gamma$). A similar expression is 
+   written going from vertex C along $-\hat{a}$, and the two are solved
+   for the two distances along the sides. We only need one here:
+\[
+      l_{c} = \frac{- k \alpha + \gamma k (\hat{a}_{1} \hat{c}_{1} 
+              + \hat{a}_{3} \hat{c}_{3}) 
+              + \hat{a}_{3} (A_{1} - C_{1}) 
+              + \hat{a}_{1} (C_{3} - A_{3})}{\hat{a}_{1} \hat{c}_{3}
+                     - \hat{a}_{3} \hat{c}_{1}}.
+\]
+  {\bf Note:} $l_{c}$ can be negative for a really stretched out triangle.
+*/
+      den=a_hat[1]*c_hat[3] - a_hat[3]*c_hat[1]
+      assert(den > zero)
+      lc=(-k*alpha + gamma*k*(a_hat[1]*c_hat[1] + a_hat[3]*c_hat[3])
+     $    + a_hat[3]*(a_vertex[1] - c_vertex[1])
+     $    + a_hat[1]*(c_vertex[3] - a_vertex[3])) / den
+/*
+   Finally, the Cartesian coordinates are given in general by
+\[
+      \vec{x} = \vec{A} + l_{c} \hat{c} + k \gamma \hat{c}_{\perp}.
+\]
+*/
+      vc_xvt(a_vertex,c_hat,lc,center)
+      vc_xvt(center,c_perp,k*gamma,center)
+/*
+  Verify that this point is indeed inside the triangle.
+*/
+      vc_difference(center,a_vertex,m_test1)
+      vc_cross(m_test1,c_vec,m_test2)
+      assert(vc_product(m_test2,neg_y) > zero)
+
+      vc_difference(center,b_vertex,m_test1)
+      vc_cross(m_test1,a_vec,m_test2)
+      assert(vc_product(m_test2,neg_y) > zero)
+
+      vc_difference(center,c_vertex,m_test1)
+      vc_cross(m_test1,b_vec,m_test2)
+      assert(vc_product(m_test2,neg_y) > zero)
+
+      return
+      end
+
+@* Set up default sectors. This code has been lifted directly out of
+|readgeometry.web|. In fact, were it not for the problem-specific 
+macros there, could have replaced that code with this subroutine call
+as well.
+
+@m next_surface #:0
+
+@<Functions...@>=
+      subroutine default_sectors(num_polygons,polygon_points,polygon_xz,
+     $                           polygon_zone,poly_int_props,poly_real_props)
+
+      implicit_none_f77
+      zn_common                                              // Common   
+      sc_common 
+      implicit_none_f90
+
+      integer num_polygons                                   // Input
+      integer polygon_points[*],polygon_zone[*],
+     $     poly_int_props[*][1:poly_int_max]
+      real polygon_xz[*][0:g2_num_points-1][g2_x:g2_z],
+     $     poly_real_props[*][1:poly_real_max]
+
+      integer i_poly,j,sector1,face1,zone1,zone2            // Local
+
+      @<Memory allocation interface@>
+
+      gi_ext
+/*
+   Set up default sectors. These are taken to be at the interface between
+   plasma / vacuum and solid / exit zones. The procedure consists of first
+   cycling through all of the polygons of zone type solid or exit and 
+   checking each surface to see if there is a plasma or vacuum zone on the
+   other side. The filter used here is that |find_poly_zone| arranges for
+   the type of |zone1| to match that of polygon |i_poly|. This is done so that,
+   for example, a target sector is identified by having |zone1| be a 
+   solid and |zone2| be plasma. The target sector is then associated with
+   |zone2| (and its corresponding face, -|face1|); |zone1| is passed
+   to |define_sector| as a check.
+*/
+      do i_poly=1,num_polygons
+         do j=0,polygon_points[i_poly]-1
+            if (polygon_xz[i_poly][j][g2_x] 
+     $                          != polygon_xz[i_poly][j+1][g2_x] 
+     $             || polygon_xz[i_poly][j][g2_z] 
+     $                          != polygon_xz[i_poly][j+1][g2_z]) then
+               call find_poly_zone(polygon_xz[i_poly][j][g2_x],
+     $              polygon_xz[i_poly][j+1][g2_x],
+     $              zn_type(polygon_zone[i_poly]),zone1,face1,zone2)
+               if (zn_check(zone1) && zn_check(zone2)) then
+                  if ((zn_type(zone1) == zn_solid) 
+     $                 && (zn_type(zone2) == zn_plasma)) then
+                     sector1=define_sector(
+     $                    poly_int_props[i_poly][poly_stratum],j,
+     $                    -face1,zone2,zone1)
+                     define_sector_target(sector1,
+     $                    poly_int_props[i_poly][poly_material],
+     $                    poly_real_props[i_poly][poly_temperature]
+     $                              *boltzmanns_const,
+     $                    poly_real_props[i_poly][poly_recyc_coef])
+
+                  else if ((zn_type(zone1) == zn_solid) 
+     $                    && (zn_type(zone2) == zn_vacuum)) then 
+                     sector1=define_sector(
+     $                    poly_int_props[i_poly][poly_stratum],j,
+     $                    -face1,zone2,zone1)
+                     define_sector_wall(sector1,
+     $                    poly_int_props[i_poly][poly_material],
+     $                    poly_real_props[i_poly][poly_temperature]
+     $                              *boltzmanns_const,
+     $                    poly_real_props[i_poly][poly_recyc_coef])
+
+                  else if ((zn_type(zone1) == zn_exit) 
+     $                    && ((zn_type(zone2) == zn_plasma) )) then
+                     sector1=define_sector(
+     $                    poly_int_props[i_poly][poly_stratum],j,
+     $                    -face1,zone2,zone1)
+                     define_sector_exit(sector1) 
+
+                  else if ((zn_type(zone1) == zn_exit) 
+     $                    && ((zn_type(zone2) == zn_vacuum) )) then
+                     sector1=define_sector(
+     $                    poly_int_props[i_poly][poly_stratum],j,
+     $                    -face1,zone2,zone1)
+                     define_sector_exit(sector1) 
+                  else
+                     goto next_surface
+                  end if
+
+                end if
+             end if
+next_surface continue
+         end do
+      end do
+
+      return
+      end
+
+@* Print data from Triangle. This is taken directly from the 
+|tricall| example program that is provided with Triangle.
+
+@<C Functions@>=
+void report(io, markers, reporttriangles, reportneighbors, reportsegments,
+            reportedges, reportnorms)
+struct triangulateio *io;
+int markers;
+int reporttriangles;
+int reportneighbors;
+int reportsegments;
+int reportedges;
+int reportnorms;
+{
+  int i, j;
+
+  for (i = 0; i < io->numberofpoints; i++) {
+    printf("Point %4d:", i);
+    for (j = 0; j < 2; j++) {
+      printf("  %.6g", io->pointlist[i * 2 + j]);
+    }
+    if (io->numberofpointattributes > 0) {
+      printf("   attributes");
+    }
+    for (j = 0; j < io->numberofpointattributes; j++) {
+      printf("  %.6g",
+             io->pointattributelist[i * io->numberofpointattributes + j]);
+    }
+    if (markers) {
+      printf("   marker %d\n", io->pointmarkerlist[i]);
+    } else {
+      printf("\n");
+    }
+  }
+  printf("\n");
+
+  if (reporttriangles || reportneighbors) {
+    for (i = 0; i < io->numberoftriangles; i++) {
+      if (reporttriangles) {
+        printf("Triangle %4d points:", i);
+        for (j = 0; j < io->numberofcorners; j++) {
+          printf("  %4d", io->trianglelist[i * io->numberofcorners + j]);
+        }
+        if (io->numberoftriangleattributes > 0) {
+          printf("   attributes");
+        }
+        for (j = 0; j < io->numberoftriangleattributes; j++) {
+          printf("  %.6g", io->triangleattributelist[i *
+                                         io->numberoftriangleattributes + j]);
+        }
+        printf("\n");
+      }
+      if (reportneighbors) {
+        printf("Triangle %4d neighbors:", i);
+        for (j = 0; j < 3; j++) {
+          printf("  %4d", io->neighborlist[i * 3 + j]);
+        }
+        printf("\n");
+      }
+    }
+    printf("\n");
+  }
+
+  if (reportsegments) {
+    for (i = 0; i < io->numberofsegments; i++) {
+      printf("Segment %4d points:", i);
+      for (j = 0; j < 2; j++) {
+        printf("  %4d", io->segmentlist[i * 2 + j]);
+      }
+      if (markers) {
+        printf("   marker %d\n", io->segmentmarkerlist[i]);
+      } else {
+        printf("\n");
+      }
+    }
+    printf("\n");
+  }
+
+  if (reportedges) {
+    for (i = 0; i < io->numberofedges; i++) {
+      printf("Edge %4d points:", i);
+      for (j = 0; j < 2; j++) {
+        printf("  %4d", io->edgelist[i * 2 + j]);
+      }
+      if (reportnorms && (io->edgelist[i * 2 + 1] == -1)) {
+        for (j = 0; j < 2; j++) {
+          printf("  %.6g", io->normlist[i * 2 + j]);
+        }
+      }
+      if (markers) {
+        printf("   marker %d\n", io->edgemarkerlist[i]);
+      } else {
+        printf("\n");
+      }
+    }
+    printf("\n");
+  }
+}
+
+@* C interface routine To triangle. This is based loosely on the
+|tricall| example that is provided with the Triangle package.
+
+@<C Functions@>=
+void poly2triangles_(npoints, polygon, refine, ntriangles, triangles)
+
+int *npoints;                           // Input
+int *refine;
+double (*polygon)[2];
+
+int *ntriangles;                        // Output
+double (*triangles)[4][2];
+{
+  struct triangulateio in, mid, out;    // Local
+  struct triangulateio *final;
+  int i, j, n, pt, jt;
+
+  n=*npoints;
+  in.numberofpoints=n;
+  in.numberofpointattributes=0;
+  in.pointlist=(double *) malloc(in.numberofpoints * 2 * sizeof(double));
+  in.numberofsegments=n;
+  in.segmentlist=(int *) malloc(in.numberofsegments * 2 * sizeof(int));
+  j=-1;
+  for (i=0; i < n; ++i) {
+    j++;
+    in.pointlist[j]=polygon[i][0];
+    in.segmentlist[j]=i;
+    j++;
+    in.pointlist[j]=polygon[i][1];
+    if (i < n-1) {
+      in.segmentlist[j]=i+1;
+    }
+    else {
+      in.segmentlist[j]=0;
+    }
+  }
+  in.pointmarkerlist=(int *) NULL;
+  in.numberofholes=0;
+  in.numberofregions=0;
+  in.regionlist=(double *) NULL;
+  in.segmentmarkerlist=(int *) NULL;  
+@#if 0
+  printf("Input point set:\n\n");
+  report(&in, 0, 0, 0, 0, 0, 0);
+@#endif
+  mid.pointlist=(double *) NULL;
+  mid.pointmarkerlist=(int *) NULL;
+  mid.trianglelist=(int *) NULL;
+  mid.segmentlist=(int *) NULL;
+  mid.segmentmarkerlist=(int *) NULL;
+
+  triangulate("pzQ", &in, &mid, (struct triangulateio *) NULL);
+
+@#if 0
+  printf("Initial triangulation:\n\n");
+  report(&mid, 0, 1, 0, 1, 0, 0);
+@#endif
+
+  out.pointlist=(double *) NULL;
+  out.pointmarkerlist=(int *) NULL;
+  out.trianglelist=(int *) NULL;
+  out.segmentlist=(int *) NULL;
+  out.segmentmarkerlist=(int *) NULL;
+
+  if (*refine == TRUE) {
+    triangulate("rpqzYQ", &mid, &out, (struct triangulateio *) NULL);
+
+@#if 0
+    printf("Final triangulation:\n\n");
+    report(&out, 0, 1, 0, 1, 0, 0);
+@#endif
+
+    final=&out;
+  }
+  else {
+    final=&mid;
+  }
+
+  if (final->numberofcorners != 3) {
+    printf("STOP!!! Triangle thinks triangles have %i corners",final->numberofcorners);  
+  }
+  if (final->numberoftriangles > g2_num_points-1) {
+    printf("STOP!!! Number of triangles %i exceeds dimensions of triangles array!",final->numberoftriangles);
+  }
+
+  for (i=0; i < final->numberoftriangles; ++i) {
+    for (j=0; j < final->numberofcorners; ++j) {
+      pt=final->trianglelist[i*final->numberofcorners + j];
+      jt=final->numberofcorners - j;   // Reverse order for |decompose_polygon|
+      triangles[i][jt][0]=final->pointlist[2*pt];
+      triangles[i][jt][1]=final->pointlist[2*pt+1];
+    }
+    triangles[i][0][0]=triangles[i][3][0];
+    triangles[i][0][1]=triangles[i][3][1];
+  }
+  *ntriangles=final->numberoftriangles;
+
+  free(in.pointlist);
+  free(in.pointmarkerlist);
+  free(in.regionlist);
+  free(mid.pointlist);
+  free(mid.pointmarkerlist);
+  free(mid.trianglelist);
+  free(mid.segmentlist);
+  free(mid.segmentmarkerlist);
+  free(out.pointlist);
+  free(out.pointmarkerlist);
+  free(out.trianglelist);
+  free(out.segmentlist);
+  free(out.segmentmarkerlist);
+}
+
+@* INDEX.
