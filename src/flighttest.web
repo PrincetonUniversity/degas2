@@ -2,6 +2,12 @@
 \Title{flighttest}
 
 % $Log$
+% Revision 1.34.2.1  1999/12/16 18:11:20  dstotler
+% Add MPI_messages macro to disable MPI send/receive reports. Set
+% output_index_1_min, etc. using zone_index_min & max. Changes to allow
+% test exchange tallies and PMI tallies as fn. of incident test: Replace
+% tl_index_back with tl_index_problem_sp.
+%
 % Revision 1.34  1999/07/22 17:54:26  dstotler
 % Add nfrag to "sending more to slave" message. Added var_reallocb for
 % chkpt arrays to satisfy memory checks in F90's var_free.
@@ -625,7 +631,7 @@ smaller chunks (of size |nfrag|) to be handled by the slave processors
                      pressure=zero
                      pres_rsd=zero
                   end if
-                  write(diskout,'(2i6,1p6e13.4)') zone_index[zone][1],
+                  write(diskout,'(2i6,1p,6e13.4)') zone_index[zone][1],
      $              zone_index[zone][2],density,dens_rsd,pressure,pres_rsd,
      $              dummy,dummy
             end if
@@ -1084,6 +1090,7 @@ we don't set the dimensions until just before the call.
       end do
 
       open(unit=diskout,file='testdata.out',status='unknown')
+      write(diskout,*) ix_n-ix_1+1,iy_n-iy_1+1,pr_test_num-1
       do test=2,pr_test_num
          write(diskout,*) sp_sy(pr_test(test))
       end do
