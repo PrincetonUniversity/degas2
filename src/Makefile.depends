@@ -3,6 +3,7 @@ al_MOD:=allocate_mod.$O
 bk_MOD:=background_mod.$O
 de_MOD:=detector_mod.$O
 el_MOD:=element_mod.$O
+g2_MOD:=geometry2d_mod.$O
 gi_MOD:=geomint_mod.$O
 cm_MOD:=macros_mod.$O
 ma_MOD:=materials_mod.$O
@@ -26,6 +27,8 @@ xs_MOD:=xsection_mod.$O
 zn_MOD:=zone_mod.$O
 allocate_mods:= $(al_MOD)
 allocate.o: $(allocate_mods)
+aux2dsetup_mods:= $(de_MOD) $(gi_MOD) $(zn_MOD)
+aux2dsetup.o: $(aux2dsetup_mods)
 boxgen_mods:= $(bk_MOD) $(de_MOD) $(ma_MOD) $(sc_MOD) $(so_MOD) $(sp_MOD) $(zn_MOD)
 boxgen.o: $(boxgen_mods)
 collide_mods:= $(bk_MOD) $(gi_MOD) $(pr_MOD) $(rc_MOD) $(rd_MOD) $(sp_MOD) $(zn_MOD)
@@ -42,6 +45,8 @@ datamatch_mods:= $(xs_MOD)
 datamatch.o: $(datamatch_mods)
 dediagsetup_mods:= $(de_MOD) $(gi_MOD) $(pr_MOD) $(sc_MOD) $(zn_MOD)
 dediagsetup.o: $(dediagsetup_mods)
+definegeometry2d_mods:= $(g2_MOD) $(ma_MOD) $(sc_MOD) $(zn_MOD)
+definegeometry2d.o: $(definegeometry2d_mods)
 degasinit_mods:= $(mp_MOD) $(pr_MOD) $(tl_MOD)
 degasinit.o: $(degasinit_mods)
 elementread_mods:= $(bk_MOD) $(el_MOD) $(mp_MOD) $(rc_MOD) $(rf_MOD) $(so_MOD) $(sp_MOD) $(zn_MOD)
@@ -125,7 +130,7 @@ writeback.o: $(writeback_mods)
 endif
 ifeq ($(STANDALONE),yes)
 allocate.f: allocate.hweb array.hweb constants.hweb macros.hweb sysdep.hweb vector.hweb
-boundary.f: array.hweb constants.hweb macros.hweb sysdep.hweb vector.hweb
+aux2dsetup.f: array.hweb constants.hweb detector.hweb geomint.hweb macros.hweb sysdep.hweb vector.hweb zone.hweb
 boxgen.f: array.hweb background.hweb constants.hweb detector.hweb geomint.hweb location.hweb macros.hweb materials.hweb sector.hweb sources.hweb species.hweb string.hweb sysdep.hweb vector.hweb zone.hweb
 classes.f: array.hweb background.hweb classes.hweb detector.hweb element.hweb flight.hweb location.hweb materials.hweb netcdf.hweb output.hweb particle.hweb pmi.hweb pmidata.hweb pmiformat.hweb problem.hweb random.hweb ratecalc.hweb reaction.hweb reactiondata.hweb readfilenames.hweb sector.hweb sources.hweb species.hweb stat.hweb string.hweb tally.hweb vector.hweb xsection.hweb zone.hweb
 collide.f: array.hweb background.hweb constants.hweb geomint.hweb location.hweb macros.hweb materials.hweb output.hweb particle.hweb problem.hweb random.hweb reaction.hweb reactiondata.hweb sector.hweb sources.hweb species.hweb string.hweb sysdep.hweb tally.hweb vector.hweb xsection.hweb zone.hweb
@@ -138,6 +143,7 @@ dataexam.f: array.hweb background.hweb constants.hweb location.hweb macros.hweb 
 datamatch.f: array.hweb constants.hweb macros.hweb netcdf.hweb reaction.hweb string.hweb sysdep.hweb vector.hweb xsection.hweb
 datasetup.f: array.hweb constants.hweb macros.hweb sysdep.hweb vector.hweb
 dediagsetup.f: array.hweb constants.hweb detector.hweb geomint.hweb location.hweb macros.hweb materials.hweb problem.hweb reaction.hweb sector.hweb species.hweb sysdep.hweb vector.hweb zone.hweb
+definegeometry2d.f: array.hweb constants.hweb geometry2d.hweb geomint.hweb location.hweb macros.hweb materials.hweb netcdf.hweb sector.hweb string.hweb sysdep.hweb vector.hweb zone.hweb
 degasinit.f: array.hweb constants.hweb macros.hweb materials.hweb mpi.hweb netcdf.hweb output.hweb pmi.hweb pmidata.hweb pmiformat.hweb problem.hweb reaction.hweb reactiondata.hweb readfilenames.hweb sector.hweb sources.hweb species.hweb string.hweb sysdep.hweb tally.hweb vector.hweb xsection.hweb zone.hweb
 elementread.f: array.hweb background.hweb constants.hweb element.hweb macros.hweb mpi.hweb netcdf.hweb reaction.hweb readfilenames.hweb sources.hweb species.hweb sysdep.hweb vector.hweb zone.hweb
 elementsetup.f: array.hweb constants.hweb element.hweb macros.hweb netcdf.hweb readfilenames.hweb string.hweb sysdep.hweb vector.hweb
