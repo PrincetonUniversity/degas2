@@ -2,6 +2,11 @@
 \Title{system dependent routines}
 
 % $Log$
+% Revision 1.8  1997/08/19 14:37:07  karney
+% Changes to support compilation under f90.  This involved extensive changes
+% in array.hweb and sysdep.web.  Nearly all other files needed some
+% modifications.
+%
 % Revision 1.7  1995/07/14 13:20:55  karney
 % Coding for strata added.
 % Switch \Wtitle to \Title.
@@ -281,7 +286,29 @@ variable |p|; on the first call |p| should be set to zero.  Returns
       return
       end
 
-@ Read an integer from a string.
+@ Read an integer from a string. This version has a soft failure
+mode to be used in situations where unexpected input can be caught
+and corrected.
+
+@<Functions...@>=
+      function read_int_soft_fail(string)
+      implicit_none_f77
+      implicit_none_f90
+      integer read_int_soft_fail      // Function
+      character*(*) string                // Input
+      character*10 form                   // Local
+      
+      write(form,'(a,i3.3,a)') '(i',len(string),')'
+      read(string,form,err=eof) read_int_soft_fail
+      return
+
+eof:  continue
+      read_int_soft_fail=int_undef
+
+      return
+      end
+
+@ Read a real from a string.
 
 @<Functions...@>=
       function read_real(string)
