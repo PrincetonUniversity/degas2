@@ -2,6 +2,11 @@
 \Title{dediagsetup}
 
 % $Log$
+% Revision 1.2  1997/08/19 14:36:34  karney
+% Changes to support compilation under f90.  This involved extensive changes
+% in array.hweb and sysdep.web.  Nearly all other files needed some
+% modifications.
+%
 % Revision 1.1  1997/08/07 19:37:31  dstotler
 % These routines should be general applicable; currently called from
 % boxgen and readgeometry.
@@ -16,6 +21,9 @@ The geomtry-specific routines will be included elsewhere; these routines
 are somewhat more general.
 
 @m FILE 'dediagsetup.web'
+
+@m REFLECT 1
+@m reflectivity const(0.2)
 
 @I macros.hweb
 @I sysdep.hweb
@@ -51,19 +59,22 @@ it must be made large enough to encompass all relevant diagnostic points.
       zn_common
       implicit_none_f90
 
-      integer i,j,nang                    // Local
-      real ang,dang,mult,tmax,t
+      integer i,j,nang,num_refl,max_refl           // Local
+      real ang,dang,mult,tmax,t,cos_angle,sin_angle
       logical done
       lc_decl(xx)
       vc_decl(x0)
       vc_decl(x1)
       vc_decl(deltax)
       vc_decl(v)
+      vc_decl(vp)
+      vc_decl(v_temp)
       vc_decl(yhat)
       vc_decl(delta_par)
       vc_decl(delta_perp)
 
-      external track                      // External
+      external track,intersection_direction                      // External
+      real intersection_direction
       logical track
 
       lc_decls
@@ -104,6 +115,8 @@ it must be made large enough to encompass all relevant diagnostic points.
             assert(lc_zone(xx) > 0)
             if (zn_type(lc_zone(xx)) != zn_vacuum && zn_type(lc_zone(xx)) != zn_plasma) then
                tmax=100    // Track to vacuum or plasma boundary
+               num_refl=0
+               max_refl=-two/log10(max(reflectivity,const(1.,-2)))+1
 loop:          continue
                t=zero
                done=track(TRACK_BASIC,tmax,lc_x(xx),v,lc_cell(xx),t,
@@ -139,6 +152,19 @@ loop1:      continue
             if (!done && (zn_type(lc_zone_next(xx)) == zn_plasma || zn_type(lc_zone_next(xx)) == zn_vacuum)) then
                lc_thru_face(xx)
                goto loop1
+
+@#if REFLECT
+             else if ((lc_sector(xx) != 0 || lc_sector_next(xx) != 0) 
+     $          && i != detector_total_views) then  // Skip spectrum chord
+                cos_angle=intersection_direction(lc_face(xx),lc_x(xx),v)
+                sin_angle=sqrt(one-cos_angle**2)
+                vc_set(vp,sin_angle,zero,cos_angle)
+                call surface_reflect(lc_face(xx),lc_x(xx),v,vp,v_temp)
+                vc_copy(v_temp,v)
+                mult*=reflectivity
+                num_refl++
+                if (num_refl <= max_refl) goto loop1
+@#endif
             end if
 skip:       continue
          end do
