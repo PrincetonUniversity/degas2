@@ -2,6 +2,10 @@
 \Title{composite}
 
 % $Log$
+% Revision 1.24  1999/07/22 17:49:51  dstotler
+% Fix a few bugs introduced with the partitioning of the symmetry
+% direction.
+%
 % Revision 1.23  1999/07/19 19:28:53  karney
 % (1) Remove much dead code in random.web.
 %
@@ -319,7 +323,8 @@ of the points.
 
       implicit_none_f77
       implicit_none_f90
-      integer n,zonearray[0:mdiv-1],mdiv,facearray[0:mdiv]            // Input
+      integer n,mdiv                                       // Input
+      integer zonearray[0:mdiv-1],facearray[0:mdiv]
       real x[2,0:n]
       declare_varp(a)
       declare_varp(b)
@@ -336,7 +341,19 @@ of the points.
       do i=0,n
           write(stderr,*) x[1,i],x[2,i]
       end do
-*/      
+*/  
+
+/*
+   First attempt at writing out geometry data for use in AVS.
+   Note: Scott would like this file to begin with a line containing
+   the number of polygons and the total number of points.
+*/
+@#if 0    
+      write(40,*) zonearray[0],n
+      do i=1,n
+         write(40,*) x[1,i],x[2,i]
+      end do
+@#endif
 
       var_alloc(a)
       var_alloc(b)
@@ -503,7 +520,8 @@ break: continue
       implicit_none_f77
       gi_common
       implicit_none_f90
-      integer n,zonearray[0:mdiv-1],mdiv,facearray[0:mdiv]          // Input
+      integer n,mdiv                                         // Input
+      integer zonearray[0:mdiv-1],facearray[0:mdiv]
       real x[2,0:n]
       
       assert(geometry_symmetry==geometry_symmetry_plane ||
@@ -534,7 +552,8 @@ break: continue
       implicit_none_f77
       gi_common
       implicit_none_f90
-      integer n,zonearray[0:mdiv-1],mdiv,facearray[0:mdiv]          // Input
+      integer n,mdiv                                         // Input
+      integer zonearray[0:mdiv-1],facearray[0:mdiv]
       real x[2,0:n]
       integer i,m,face // Local
       real coeff[NCOEFFS],x1[3],x2[3],x3[3],a[3]
@@ -635,7 +654,8 @@ break: continue
       implicit_none_f77
       gi_common
       implicit_none_f90
-      integer n,zonearray[0:mdiv-1],mdiv,facearray[0:mdiv]          // Input
+      integer n,mdiv                                           // Input
+      integer zonearray[0:mdiv-1],facearray[0:mdiv]
       real x[2,0:n]
       integer i,j,ia,ja,m,leftmin,leftmax,rightmin,rightmax,surf_type,kdiv // Local
       real zmin,zmax,zmina,zmaxa,ztarget,guardmin,guardmax,cutmin,cutmax,
