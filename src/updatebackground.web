@@ -2,6 +2,10 @@
 \Title{updatebackground}
 
 % $Log$
+% Revision 1.2  1999/07/22 17:59:29  dstotler
+% Use update flag to denote old or new run rather than locally doing a
+% check on source_segment_ptr (this didn't work well in DEBUG=no mode).
+%
 % Revision 1.1  1999/05/25 13:08:47  dstotler
 % Added to repository.
 %
@@ -53,13 +57,13 @@ in iterations with a fluid plasma code.
       
       character*FILELEN datafilename                   // Input
 
-      logical uedge                                    // Local
+      integer old_source_file, uedge                   // Local
 
       @<Memory allocation interface@>
 
-      uedge = .false.
+      uedge = FALSE
       if (index(datafilename,'.u') > 0) then
-         uedge = .true.
+         uedge = TRUE
       else
          assert('File name must end in .u' == ' ')
       end if
@@ -79,8 +83,16 @@ in iterations with a fluid plasma code.
       var_alloc(background_v)
       var_alloc(background_temp)
 
-      if (uedge) then
-         call update_uedge_background(datafilename)         
+      call nc_read_old_sources(old_source_file)
+
+      if (uedge == TRUE) then
+         if (old_source_file == TRUE) then
+            call update_uedge_background(datafilename)         
+         else
+            call read_uedge_background(datafilename)
+            call set_background_sources
+            call init_wt_alias(uedge)
+         end if
       endif
 
       call write_background
@@ -124,7 +136,9 @@ for the next run.
 
       @<Memory allocation interface@>
 
+@#if 0
       call nc_read_old_sources
+@#endif
 
       var_alloc(old_current)
       var_alloc(old_rel_wt)
@@ -230,6 +244,7 @@ weight factor. Otherwise, recompute the sampling arrays.
 break: continue
 
          if (initialize == TRUE) then
+            write(stdout,*) ' Initializing sampling arrays for group ',grp
             write_file=TRUE
             do i_seg=so_base(grp),so_base(grp)+so_nseg(grp)-1
                source_segment_rel_wt[i_seg]=one
@@ -252,20 +267,29 @@ break: continue
 @ Read in old sources.
 
 @<Functions...@>=
-      subroutine nc_read_old_sources
+      subroutine nc_read_old_sources(old_source_file)
       implicit_none_f77
       so_common
       rf_common
       implicit_none_f90
+      integer old_source_file      // Output
       integer fileid
-      character *FILELEN tempfile  //local
+      character *FILELEN tempfile  // Local
       nc_decls
       @<Memory allocation interface@>
       so_ncdecl
 
       tempfile=filenames_array[oldsourcefile]
       assert(tempfile != char_undef)
+      call ncpopt(0)
       fileid=ncopen(tempfile,NC_NOWRITE,nc_stat)
+      if (nc_stat != 0) then
+         old_source_file=FALSE
+         return
+      else
+         old_source_file=TRUE
+      end if
+      call ncpopt(NC_VERBOSE+NC_FATAL)
       
       so_ncread(fileid)
       call ncclose(fileid,nc_stat)
