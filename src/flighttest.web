@@ -2,6 +2,12 @@
 \Title{flighttest}
 
 % $Log$
+% Revision 1.22  1998/01/14 20:39:17  dstotler
+% Move a bunch of post-processing calculations to score.web (now
+% skipping for 0 mass test species). Replace problem_species_background
+% with pr_background_lookup. Add arrays for manual coupling to fluid
+% code. Replace transform_v routine with a macro.
+%
 % Revision 1.21  1997/09/02 21:14:28  karney
 % New initializer for random numbers.
 % Kludge to get around NERSC/Sun f90 bugs in sysdep.web (see CHARPOINTERBUG).
@@ -97,6 +103,7 @@
 @I sources.hweb
 @I tally.hweb
 @I output.hweb
+@I detector.hweb
 @I netcdf.hweb
 @I readfilenames.hweb
 @I problem.hweb
@@ -152,21 +159,22 @@ PVM more straightforward.
       tl_common
       ou_common
       so_common
+      de_common
       pr_common
       implicit_none_f90
 
       integer nflights,nfrag                                // Input
-      integer i,j,is,zone,test            // Local
-      integer i,j,is,zone,nprod,seg,seg_tot,test,bk_rc_is   // Local
+      integer i,j,is,zone,test,jscore,iview,det,ibin,iauth           // Local
       integer index_parameters[tl_index_max]
       rn_seed_decl(seed)
       real weight_frag,tot_scale_curr,prob,density,dummy,
-     $     dens_rsd,pressure,pres_rsd
-      integer index_parameters[tl_index_max]
+     $     dens_rsd,pressure,pres_rsd,signal,wavelength
+      real sig_det[20]
       logical init
 
       @<Memory allocation interface@>
       tl_decls
+      st_decls
 
       real find_rate,extract_output_datum                    // External
       external find_rate,extract_output_datum
@@ -344,6 +352,43 @@ c      real weight_grp[so_grps]
      $              dummy,dummy
             end if
          end do
+      end do
+      close(unit=diskout)
+
+      open(unit=diskout,file='chords.out',status='unknown')
+      jscore=string_lookup('Dalpha chord integrals',tally_name,tl_num)
+      assert(tally_rank[jscore] == 1)
+      do iview=1,tally_tab_index[jscore][1]
+         index_parameters[tl_index_detector]=iview
+         signal=extract_output_datum(index_parameters,0,
+     $        out_post_all[0][o_mean],'Dalpha chord integrals')
+         write(diskout,'(2x,i3,6x,1pe13.4)') iview,signal
+      end do
+      close(unit=diskout)
+
+      open(unit=diskout,file='spectrum.out',status='unknown')
+      jscore=string_lookup('Dalpha spectrum detail',tally_name,tl_num)
+      assert(tally_indep_var[jscore][3] == tl_index_wavelength_bin)
+      assert(tally_indep_var[jscore][2] == tl_index_test_author)
+      assert(tally_tab_index[jscore][1] == 1)
+      index_parameters[tl_index_detector]=1
+      det=de_lookup('Halpha spectrum')
+      assert(detector_spacing[det] == de_spacing_linear)
+      assert(detector_tab_index[det] == tally_tab_index[jscore][3])
+      assert(tally_tab_index[jscore][2] <= 20)   // |sig_det| dimension
+      do ibin=1,tally_tab_index[jscore][3]
+         index_parameters[tl_index_wavelength_bin]=ibin
+         do iauth=1,tally_tab_index[jscore][2]
+            index_parameters[tl_index_test_author]=iauth
+            signal=extract_output_datum(index_parameters,0,
+     $           out_post_all[0][o_mean],'Dalpha spectrum detail')
+            sig_det[iauth]=signal
+            assert(sig_det[iauth] == signal)
+         end do
+         signal=extract_output_datum(index_parameters,0,
+     $        out_post_all[0][o_mean],'Dalpha spectrum')
+         wavelength=detector_min[det]+(areal(ibin)-0.5)*detector_delta[det]
+         write(diskout,'(1pe16.6,21e13.4)') wavelength,signal,(sig_det[iauth],iauth=1,tally_tab_index[jscore][2])
       end do
       close(unit=diskout)
 
