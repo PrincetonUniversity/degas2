@@ -2,6 +2,12 @@
 \Title{writeback}
 
 % $Log$
+% Revision 1.8  1999/07/22 18:00:23  dstotler
+% Make writing of oldsourcefile conditional on presence of name in
+% degas2.in since it's not used for every run. Use update flag to denote
+% old or new run rather than locally doing a check on source_segment_ptr
+% (this didn't work well in DEBUG=no mode).
+%
 % Revision 1.7  1999/05/25 13:32:54  dstotler
 % Allocate & set default value for source_num_checkpoints.
 % Completely rewritten to facilitate creation of updatebackground.
@@ -62,6 +68,110 @@ Introduction\ldots
 @a
       @<Functions and Subroutines@>
 
+@ read uedge background data 
+@<Functions...@>=
+      subroutine read_uedge_background(file)
+
+      implicit_none_f77
+      sp_common                                  // Common
+      so_common
+      implicit_none_f90
+      character*FILELEN file                     // Input
+                                               
+      integer nx,ny                              // Local; UEDGE file data:
+      real rm[bk_mx,bk_my,0:4],zm[bk_mx,bk_my,0:4],
+     $     ni[bk_mx,bk_my],vr[bk_mx,bk_my],vz[bk_mx,bk_my],vphi[bk_mx,bk_my],
+     $     te[bk_mx,bk_my],ti[bk_mx,bk_my],
+     $     ni1[bk_my],vr1[bk_my],vz1[bk_my],vphi1[bk_my],
+     $     ti1[bk_my],te1[bk_my],flux1[bk_my],
+     $     ni2[bk_my],vr2[bk_my],vz2[bk_my],vphi2[bk_my],
+     $     ti2[bk_my],te2[bk_my],flux2[bk_my]
+      integer i,tot,update                        // Other local
+      real flux1_tot,flux2_tot
+
+      st_decls
+      @<Memory allocation interface@>
+
+      external lookup_sector,inc_ion_energy      // External
+      integer lookup_sector
+      real inc_ion_energy
+      
+      call init_uedge_background(file,nx,ny,rm,zm,ni,vr,vz,vphi,
+     $     ti,te,ni1,vr1,vz1,vphi1,ti1,te1,flux1,ni2,vr2,vz2,vphi2,
+     $     ti2,te2,flux2,flux1_tot,flux2_tot)
+
+      if (flux1_tot > zero && flux2_tot > zero) then
+         so_grps=2
+         so_seg_tot=2*ny
+      else if (flux1_tot > zero || flux2_tot > zero) then
+         so_grps=1
+         so_seg_tot=ny
+      else
+         assert('Zero fluxes in UEDGE background' == ' ')
+      end if
+      so_set_run_flags
+
+      var_alloc(source_base_ptr)
+      var_alloc(source_num_segments)
+      var_alloc(source_type)
+      var_alloc(source_geometry)
+      var_alloc(source_num_flights)
+      var_alloc(source_num_checkpoints)
+      var_alloc(source_species)
+      var_alloc(source_total_current)
+      var_alloc(source_weight_norm)
+      var_alloc(source_scale_factor)
+/*
+   Note: using |var_reallocc| here rather than |var_alloc| since
+   we use |var_realloca| in |set_background_sources|. This way we
+   are allocating memory in |mem_inc| chunks in every case. This
+   is the way it's done in |read_degas_background| as well.
+*/
+      var_reallocc(source_segment_ptr,0,so_seg_tot)
+      var_reallocc(source_current,0,so_seg_tot)
+      var_reallocc(source_segment_rel_wt,0,so_seg_tot)
+      var_reallocc(source_segment_prob_alias,0,so_seg_tot)
+      var_reallocc(source_segment_ptr_alias,0,so_seg_tot)
+
+/* Figure what the test species by searching for the
+   one which participates in the most reactions. This
+   reasoning probably needs to be improved.
+ */
+@#if 0
+      max_rc=0
+      test=0
+      do i=1,pr_test_num
+         if (pr_rc_num(i) > max_rc) then
+            test = i
+            max_rc = pr_rc_num(i)
+         end if
+      end do
+      assert(test > 0)
+@#endif
+      tot=0
+      do i=1,so_grps
+         so_type(i)=so_plate
+@#if 0
+         so_species(i)=pr_test(test)
+@#endif
+         so_species(i)=sp_lookup('D+')
+         so_nseg(i)=ny
+         so_geom(i)=so_surface
+         so_scale(i)=one
+         so_nflights(i)=100
+         so_chkpt(i)=0
+         so_base(i)=tot+1
+         tot+=ny
+      end do
+
+      update=FALSE
+      call set_uedge_plate_sources(nx,ny,rm,zm,
+     $     vr1,vz1,vphi1,te1,ti1,flux1,
+     $     vr2,vz2,vphi2,te2,ti2,flux2,flux1_tot,flux2_tot,update)
+
+      return
+      end
+
 @ Read UEDGE input file and set corresponding background data.
 
 @<Functions...@>=
@@ -86,7 +196,7 @@ Introduction\ldots
      $     ti2[bk_my],te2[bk_my],flux2[bk_my]
       real flux1_tot,flux2_tot
 
-      integer nu,nx,ny,ixpt1,ixpt2,iysptrx,i,j1,j2,j3  // Local
+      integer nu,ixpt1,ixpt2,iysptrx,i,j1,j2,j3  // Local
       real dummy
 
       open(unit=diskin,file=file,status='old',form='formatted')
@@ -289,7 +399,7 @@ Introduction\ldots
       integer jr,update           // Input
       so_decl(grp)
 
-      integer jr,zone             // Local
+      integer zone                // Local
       real rate
       pt_decl(bk_rg2)
       lc_decl(zone_loc)
@@ -499,7 +609,7 @@ one applied by EIRENE in the benchmark runs.
       so_common
       implicit_none_f90
 
-      logical uedge
+      integer uedge
 
       so_decl(grp)
 
@@ -518,7 +628,7 @@ one applied by EIRENE in the benchmark runs.
      $        source_segment_ptr_alias[so_base(grp)],so_wt_norm(grp))
       end do
 
-      if (uedge) call write_old_sources 
+      if (uedge == TRUE) call write_old_sources 
 
       return
       end
