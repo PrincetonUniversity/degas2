@@ -36,6 +36,51 @@ hchex	H+ + H -> H + H+
 ../data/hchex.nc
 chargex
 
+deuterium charge exchange
+dd_chargex D+ + D -> D + D+
+../data/dd_chargex.nc
+chargex
+
+atomic deuterium ion elastic scattering
+dd_00_elastic D+ + D -> D+ + D 
+../data/dd_00_elastic.nc
+elastic
+
+atomic deuterium ion elastic scattering 5 Degree Cut-off
+dd_05_elastic D+ + D -> D+ + D
+../data/dd_05_elastic.nc
+elastic
+
+molecular deuterium ion elastic scattering
+dd2_00_elastic D+ + D2 -> D+ + D2 
+../data/dd2_00_elastic.nc
+elastic
+
+molecular deuterium ion elastic scattering 5 Degree Cut-off
+dd2_05_elastic D+ + D2 -> D+ + D2 
+../data/dd2_05_elastic.nc
+elastic
+
+deuterium deuterium elastic scattering
+dd_neut D + D -> D + D 
+../data/dd_neut.nc
+bgk_elastic
+
+molecular deuterium - molecular deuterium elastic scattering
+d2d2_neut D2 + D2 -> D2 + D2 
+../data/d2d2_neut.nc
+bgk_elastic
+
+deuterium - molecular deuterium elastic scattering
+dd2_neut D + D2 -> D + D2 
+../data/dd2_neut.nc
+bgk_elastic
+
+molecular deuterium - deuterium elastic scattering
+d2d_neut D2 + D -> D2 + D 
+../data/d2d_neut.nc
+bgk_elastic
+
 molecular hydrogen dissociation
 h2dis e + H2 -> e + H + H
 ../data/h2dis.nc
@@ -85,30 +130,3 @@ molecular hydrogen dissociation with MAR CRAMD
 h2discramd e + H2 -> e + H * + H+ + e
 ../data/h2discramd.nc
 dissoc_cramd
-
-atomic deuterium ion elastic scattering
-dd_00_elastic D+ + D => D+ + D 
-../data/dd_00_elastic.nc
-elastic
-
-atomic deuterium ion elastic scattering 5 Degree Cut-off
-dd_05_elastic D+ + D => D+ + D
-../data/dd_05_elastic.nc
-elastic
-
-deuterium charge exchange - Krstic data
-dd_chargex D+ + D => D + D+
-../data/dd_chargex.nc
-chargex
-
-molecular deuterium ion elastic scattering
-dd2_00_elastic D+ + D2 => D+ + D2 
-../data/dd2_00_elastic.nc
-elastic
-
-molecular deuterium ion elastic scattering 5 Degree Cut-off
-dd2_05_elastic D+ + D2 => D+ + D2 
-../data/dd2_05_elastic.nc
-elastic
-
-
