@@ -2,6 +2,9 @@
 \Title{writeback}
 
 % $Log$
+% Revision 1.8.4.1  2000/01/22 00:50:21  kanzlr
+% Background definition expanded to include background_pres term.
+%
 % Revision 1.8  1999/07/22 18:00:23  dstotler
 % Make writing of oldsourcefile conditional on presence of name in
 % degas2.in since it's not used for every run. Use update flag to denote
@@ -152,13 +155,11 @@ Introduction\ldots
                if ( sp_z(pr_background(sp_back)) == 0 ) then
                   background_n[sp_back,i] = zero
                   background_temp[sp_back,i] = zero
-                  background_pres[sp_back,i] = zero
                   vc_set(background_v[sp_back,i],zero,zero,zero)
                else
                   background_n[sp_back,i] = ni[j1,j2]
                   if(sp_back == 1) background_temp[sp_back,i] = te[j1,j2]
                   if(sp_back == 2) background_temp[sp_back,i] = ti[j1,j2]
-                  background_pres[sp_back,i] = zero
                   vc_set(background_v[sp_back,i],vr[j1,j2],vphi[j1,j2],vz[j1,j2])
                endif
             enddo
