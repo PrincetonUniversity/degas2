@@ -2,6 +2,11 @@
 \Title{collide}
 
 % $Log$
+% Revision 1.23  1999/03/25 20:57:07  dstotler
+% Replace I_l... with I_0... (charge exchange) and I_1... (elastic) for
+% clarity. Clean up some of Randy's code. Replace rand_angle with
+% simpler inline calls.
+%
 % Revision 1.22  1998/12/22 16:42:51  dstotler
 % Corrected sign error in 1.5 T_i term in recombination_data.
 %
@@ -226,13 +231,15 @@
       pr_reaction_decl(pr_reac)                        // Local
       pr_background_decl(back)
       pr_background_decl(back_i)
-      integer i,i_cx,i_sigv_max,jdep_cx,count
+      pr_test_decl(test_i)
+      integer i,i_cx,i_sigv_max,jdep_cx,count,psp_i
       vc_decl(v_test)
       vc_decl(v_back)
       vc_decl(vb_flow)
       vc_decl(vt_plasma_frame)
       vc_decl(vb_therm)
       vc_decl(vrel)
+      vc_decl(v_i)
       real v_thermal,ran,sgvmax,tempmax,cxsec,cx_v,m_i
       logical init
 
@@ -332,32 +339,55 @@ loop: continue
       end do
 
 /*
-   Collision scoring - only background sources expected here.
+   Collision scoring 
 */
-      scoring_data[pr_var_back_index(pr_var_back_mass,back)]+=
-     $     -sp_m(pr_background(back))*rate
-      scoring_data[pr_var_back_index(pr_var_back_momentum_vector,back)]+=
-     $     -sp_m(pr_background(back))*v_back[1]*rate
-      scoring_data[pr_var_back_index(pr_var_back_momentum_2,back)]+=
-     $     -sp_m(pr_background(back))*v_back[2]*rate
-      scoring_data[pr_var_back_index(pr_var_back_momentum_3,back)]+=
-     $     -sp_m(pr_background(back))*v_back[3]*rate
-      scoring_data[pr_var_back_index(pr_var_back_energy,back)]+=
-     $     -half*sp_m(pr_background(back))*vc_abs2(v_back)*rate
-      do i=1,nprod
-         back_i=pr_background_lookup(prod[i])
-         if (back_i != 0) then
-            m_i=sp_m(pr_background(back_i))
-            scoring_data[pr_var_back_index(pr_var_back_mass,back_i)]+=m_i*rate
-            scoring_data[pr_var_back_index(pr_var_back_momentum_vector,back_i)]+=
-     $           m_i*v_prod[i][1]*rate 
-            scoring_data[pr_var_back_index(pr_var_back_momentum_2,back_i)]+=
-     $           m_i*v_prod[i][2]*rate
-            scoring_data[pr_var_back_index(pr_var_back_momentum_3,back_i)]+=
-     $           m_i*v_prod[i][3]*rate
-            scoring_data[pr_var_back_index(pr_var_back_energy,back_i)]+=
-     $           half*m_i*vc_abs2(v_prod[i])*rate
+      do i=1,2
+         if (i == 1) then
+            m_i=sp_m(pr_background(back))
+            psp_i=pr_problem_sp_back(back)
+            vc_copy(v_back,v_i)
+         else if (i == 2) then
+            m_i=sp_m(pr_test(test))
+            psp_i=pr_problem_sp_test(test)
+            vc_copy(v_test,v_i)
          end if
+         scoring_data[pr_var_problem_sp_index(pr_var_mass_change,psp_i)]+=
+     $        -m_i*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_vector,psp_i)]+=
+     $        -m_i*v_i[1]*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_2,psp_i)]+=
+     $        -m_i*v_i[2]*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_3,psp_i)]+=
+     $        -m_i*v_i[3]*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_energy_change,psp_i)]+=
+     $        -half*m_i*vc_abs2(v_i)*rate
+      end do
+/*
+   Because of the way neutral-neutral reactions are specified (with 
+   neutral species in both background and test lists), getting test
+   and background products correct in other reactions requires looking
+   for test species first.
+*/
+      do i=1,nprod
+         test_i=pr_test_lookup(prod[i])
+         if (test_i != 0) then
+            m_i=sp_m(pr_test(test_i))
+            psp_i=pr_problem_sp_test(test_i)
+         else
+            back_i=pr_background_lookup(prod[i])
+            assert(back_i != 0)
+            m_i=sp_m(pr_background(back_i))
+            psp_i=pr_problem_sp_back(back_i)
+         end if
+         scoring_data[pr_var_problem_sp_index(pr_var_mass_change,psp_i)]+=m_i*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_vector,psp_i)]+=
+     $        m_i*v_prod[i][1]*rate 
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_2,psp_i)]+=
+     $        m_i*v_prod[i][2]*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_3,psp_i)]+=
+     $        m_i*v_prod[i][3]*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_energy_change,psp_i)]+=
+     $        half*m_i*vc_abs2(v_prod[i])*rate
       end do
 
       return
@@ -394,7 +424,8 @@ loop: continue
       pr_reaction_decl(pr_reac)                        // Local
       pr_background_decl(back)
       pr_background_decl(back_i)
-      integer i,rm_theta_prob,theta_count,coll_count,
+      pr_test_decl(test_i)
+      integer i,rm_theta_prob,theta_count,coll_count,psp_i,
      $        i_sigv_max,i_angle_min,i_cx,i_csang,jdep_cx
       vc_decl(v_test)
       vc_decl(v_back)
@@ -402,6 +433,7 @@ loop: continue
       vc_decl(vt_plasma_frame)
       vc_decl(vb_therm)
       vc_decl(vrel)
+      vc_decl(v_i)
       real v_thermal,sigvmax,tempmax,cxsec,cx_v,m_i,angle,angle_min,ran
       logical init
 
@@ -529,30 +561,53 @@ loop: continue
 /*
    Collision scoring - only background sources expected here.
 */
-      scoring_data[pr_var_back_index(pr_var_back_mass,back)]+=
-     $     -sp_m(pr_background(back))*rate
-      scoring_data[pr_var_back_index(pr_var_back_momentum_vector,back)]+=
-     $     -sp_m(pr_background(back))*v_back[1]*rate
-      scoring_data[pr_var_back_index(pr_var_back_momentum_2,back)]+=
-     $     -sp_m(pr_background(back))*v_back[2]*rate
-      scoring_data[pr_var_back_index(pr_var_back_momentum_3,back)]+=
-     $     -sp_m(pr_background(back))*v_back[3]*rate
-      scoring_data[pr_var_back_index(pr_var_back_energy,back)]+=
-     $     -half*sp_m(pr_background(back))*vc_abs2(v_back)*rate
-      do i=1,nprod
-         back_i=pr_background_lookup(prod[i])
-         if (back_i != 0) then
-            m_i=sp_m(pr_background(back_i))
-            scoring_data[pr_var_back_index(pr_var_back_mass,back_i)]+=m_i*rate
-            scoring_data[pr_var_back_index(pr_var_back_momentum_vector,back_i)]+=
-     $           m_i*v_prod[i][1]*rate 
-            scoring_data[pr_var_back_index(pr_var_back_momentum_2,back_i)]+=
-     $           m_i*v_prod[i][2]*rate
-            scoring_data[pr_var_back_index(pr_var_back_momentum_3,back_i)]+=
-     $           m_i*v_prod[i][3]*rate
-            scoring_data[pr_var_back_index(pr_var_back_energy,back_i)]+=
-     $           half*m_i*vc_abs2(v_prod[i])*rate
+      do i=1,2
+         if (i == 1) then
+            m_i=sp_m(pr_background(back))
+            psp_i=pr_problem_sp_back(back)
+            vc_copy(v_back,v_i)
+         else if (i == 2) then
+            m_i=sp_m(pr_test(test))
+            psp_i=pr_problem_sp_test(test)
+            vc_copy(v_test,v_i)
          end if
+         scoring_data[pr_var_problem_sp_index(pr_var_mass_change,psp_i)]+=
+     $        -m_i*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_vector,psp_i)]+=
+     $        -m_i*v_i[1]*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_2,psp_i)]+=
+     $        -m_i*v_i[2]*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_3,psp_i)]+=
+     $        -m_i*v_i[3]*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_energy_change,psp_i)]+=
+     $        -half*m_i*vc_abs2(v_i)*rate
+      end do
+/*
+   Because of the way neutral-neutral reactions are specified (with 
+   neutral species in both background and test lists), getting test
+   and background products correct in other reactions requires looking
+   for test species first.
+*/
+      do i=1,nprod
+         test_i=pr_test_lookup(prod[i])
+         if (test_i != 0) then
+            m_i=sp_m(pr_test(test_i))
+            psp_i=pr_problem_sp_test(test_i)
+         else
+            back_i=pr_background_lookup(prod[i])
+            assert(back_i != 0)
+            m_i=sp_m(pr_background(back_i))
+            psp_i=pr_problem_sp_back(back_i)
+         end if
+         scoring_data[pr_var_problem_sp_index(pr_var_mass_change,psp_i)]+=m_i*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_vector,psp_i)]+=
+     $        m_i*v_prod[i][1]*rate 
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_2,psp_i)]+=
+     $        m_i*v_prod[i][2]*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_3,psp_i)]+=
+     $        m_i*v_prod[i][3]*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_energy_change,psp_i)]+=
+     $        half*m_i*vc_abs2(v_prod[i])*rate
       end do
 
       return
@@ -591,7 +646,8 @@ loop: continue
       pr_reaction_decl(pr_reac)                        // Local
       pr_background_decl(back)
       pr_background_decl(back_i)
-      integer i,i_ediss,i_elediss,num_heavy_products,j_arr
+      pr_test_decl(test_i)
+      integer i,i_ediss,i_elediss,num_heavy_products,j_arr,psp_i
       integer product_index[2]
       vc_decl(v_test)
       vc_decl(v_iso)
@@ -698,7 +754,7 @@ break:continue
                w_prod[i]=one
             end if
 @#else
-            W_prod[i]=one
+            w_prod[i]=one
 @#endif
          else
             vc_set(v_prod[i],zero,zero,zero)
@@ -711,23 +767,43 @@ break:continue
    Note: assume background is an electron so that no reagent background
    momentum is lost.
 */
-      scoring_data[pr_var_back_index(pr_var_back_mass,back)]+=
+      psp_i=pr_problem_sp_back(back)
+      scoring_data[pr_var_problem_sp_index(pr_var_mass_change,psp_i)]+=
      $  -sp_m(pr_background(back))*rate
-      scoring_data[pr_var_back_index(pr_var_back_energy,back)]+=-elediss
+      scoring_data[pr_var_problem_sp_index(pr_var_energy_change,psp_i)]+=-elediss
+
+      psp_i=pr_problem_sp_test(test)
+      m_i=sp_m(pr_test(test))
+      scoring_data[pr_var_problem_sp_index(pr_var_mass_change,psp_i)]+=
+     $        -m_i*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_vector,psp_i)]+=
+     $        -m_i*v_test[1]*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_2,psp_i)]+=
+     $        -m_i*v_test[2]*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_3,psp_i)]+=
+     $        -m_i*v_test[3]*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_energy_change,psp_i)]+=
+     $        -half*m_i*vc_abs2(v_test)*rate
       do i=1,nprod
-         back_i=pr_background_lookup(prod[i])
-         if (back_i != 0) then
+         test_i=pr_test_lookup(prod[i])
+         if (test_i != 0) then
+            m_i=sp_m(pr_test(test_i))
+            psp_i=pr_problem_sp_test(test_i)
+         else
+            back_i=pr_background_lookup(prod[i])
+            assert(back_i != 0)
             m_i=sp_m(pr_background(back_i))
-            scoring_data[pr_var_back_index(pr_var_back_mass,back_i)]+=m_i*rate
-            scoring_data[pr_var_back_index(pr_var_back_momentum_vector,back_i)]+=
-     $           m_i*v_prod[i][1]*rate 
-            scoring_data[pr_var_back_index(pr_var_back_momentum_2,back_i)]+=
-     $           m_i*v_prod[i][2]*rate
-            scoring_data[pr_var_back_index(pr_var_back_momentum_3,back_i)]+=
-     $           m_i*v_prod[i][3]*rate
-            scoring_data[pr_var_back_index(pr_var_back_energy,back_i)]+=
-     $           half*m_i*vc_abs2(v_prod[i])*rate
+            psp_i=pr_problem_sp_back(back_i)
          end if
+         scoring_data[pr_var_problem_sp_index(pr_var_mass_change,psp_i)]+=m_i*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_vector,psp_i)]+=
+     $        m_i*v_prod[i][1]*rate 
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_2,psp_i)]+=
+     $        m_i*v_prod[i][2]*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_3,psp_i)]+=
+     $        m_i*v_prod[i][3]*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_energy_change,psp_i)]+=
+     $        half*m_i*vc_abs2(v_prod[i])*rate
       end do
 
       return
@@ -889,32 +965,35 @@ break:continue
 
 /*
    Collision scoring. This isn't done yet. There remain the MAR and 
-   H-alpha data to implement.
+   H-alpha data to implement. Scores of test species are not done
+   (assuming that CRAMD is deprecated). Commented out as a result.
 */
-      scoring_data[pr_var_back_index(pr_var_back_mass,back)]+=
+@#if 0
+      scoring_data[pr_var_back_index(pr_var_mass_change,back)]+=
      $  -sp_m(pr_background(back))*rate
-      scoring_data[pr_var_back_index(pr_var_back_energy,back)]+=-eloss
+      scoring_data[pr_var_back_index(pr_var_energy_change,back)]+=-eloss
       do i=1,nprod
          back_i=pr_background_lookup(prod[i])
          if (back_i != 0) then
             m_i=sp_m(pr_background(back_i))
             if (sp_sy(prod[i]) == 'e') then
-               scoring_data[pr_var_back_index(pr_var_back_mass,back_i)]+=
+               scoring_data[pr_var_back_index(pr_var_mass_change,back_i)]+=
      $              m_i*(const(3.)-two*hfrac)*rate
             else
-               scoring_data[pr_var_back_index(pr_var_back_mass,back_i)]+=
+               scoring_data[pr_var_back_index(pr_var_mass_change,back_i)]+=
      $              m_i*two*(one-hfrac)*rate
-               scoring_data[pr_var_back_index(pr_var_back_momentum_vector,back_i)]+=
+               scoring_data[pr_var_back_index(pr_var_momentum_change_vector,back_i)]+=
      $              m_i*v_prod[i][1]*two*(one-hfrac)*rate
-               scoring_data[pr_var_back_index(pr_var_back_momentum_2,back_i)]+=
+               scoring_data[pr_var_back_index(pr_var_momentum_change_2,back_i)]+=
      $              m_i*v_prod[i][2]*two*(one-hfrac)*rate
-               scoring_data[pr_var_back_index(pr_var_back_momentum_3,back_i)]+=
+               scoring_data[pr_var_back_index(pr_var_momentum_change_3,back_i)]+=
      $              m_i*v_prod[i][3]*two*(one-hfrac)*rate
-               scoring_data[pr_var_back_index(pr_var_back_energy,back_i)]+=
+               scoring_data[pr_var_back_index(pr_var_energy_change,back_i)]+=
      $              half*m_i*vc_abs2(v_prod[i])*two*(one-hfrac)*rate-iloss
             end if
          end if
       end do
+@#endif
 
       return
       end
@@ -955,10 +1034,11 @@ of suppressed absorption.
       pr_reaction_decl(pr_reac)                        // Local
       pr_background_decl(back)
       pr_background_decl(back_i)
+      pr_test_decl(test_i)
       rc_decl(reac)
-      integer i,i_eioniz,num_lines,i_e_rate,i_gen_rate
+      integer i,i_eioniz,num_lines,i_e_rate,i_gen_rate,psp_i
       integer lines[max_lines],e_rates[max_lines]
-      real eioniz
+      real eioniz,m_i
       vc_decl(v_test)
       vc_decl(v_emitter)
       character*tl_tag_length line
@@ -1088,29 +1168,54 @@ of suppressed absorption.
 /*
    Collision scoring of coupling scores
 */
-      scoring_data[pr_var_back_index(pr_var_back_mass,back)]+=
+      psp_i=pr_problem_sp_back(back)
+      scoring_data[pr_var_problem_sp_index(pr_var_mass_change,psp_i)]+=
      $  -sp_m(pr_background(back))*rate
-      scoring_data[pr_var_back_index(pr_var_back_energy,back)]+=-eioniz
+      scoring_data[pr_var_problem_sp_index(pr_var_energy_change,psp_i)]+=-eioniz
+
+      psp_i=pr_problem_sp_test(test)
+      m_i=sp_m(pr_test(test))
+      scoring_data[pr_var_problem_sp_index(pr_var_mass_change,psp_i)]+=
+     $        -m_i*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_vector,psp_i)]+=
+     $        -m_i*v_test[1]*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_2,psp_i)]+=
+     $        -m_i*v_test[2]*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_3,psp_i)]+=
+     $        -m_i*v_test[3]*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_energy_change,psp_i)]+=
+     $        -half*m_i*vc_abs2(v_test)*rate
+
       do i=1,nprod
          prod[i]=pr_ts_prod(test,ts_reac,1,i)
-         back_i=pr_background_lookup(prod[i])
-         if (back_i != 0) then
-            scoring_data[pr_var_back_index(pr_var_back_mass,back_i)]+=
-     $           sp_m(prod[i])*rate
+         test_i=pr_test_lookup(prod[i])
+         if (test_i != 0) then
+            psp_i=pr_problem_sp_test(test_i)
+         else
+            back_i=pr_background_lookup(prod[i])
+            assert(back_i != 0)
+            psp_i=pr_problem_sp_back(back_i)
+         end if
+         scoring_data[pr_var_problem_sp_index(pr_var_mass_change,psp_i)]+=
+     $        sp_m(prod[i])*rate
+@#if 0
             if (i == 2) then         // See assertion below
+// Was this needed?  |v_prod| is set above.
                vc_copy(v_test,v_prod[i])
-               scoring_data[pr_var_back_index(pr_var_back_momentum_vector,back_i)]+=
-     $              sp_m(prod[i])*v_prod[i][1]*rate 
-               scoring_data[pr_var_back_index(pr_var_back_momentum_2,back_i)]+=
-     $              sp_m(prod[i])*v_prod[i][2]*rate
-               scoring_data[pr_var_back_index(pr_var_back_momentum_3,back_i)]+=
-     $              sp_m(prod[i])*v_prod[i][3]*rate
-               scoring_data[pr_var_back_index(pr_var_back_energy,back_i)]+=
-     $              half*sp_m(prod[i])*vc_abs2(v_prod[i])*rate
+@#endif
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_vector,psp_i)]+=
+     $        sp_m(prod[i])*v_prod[i][1]*rate 
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_2,psp_i)]+=
+     $        sp_m(prod[i])*v_prod[i][2]*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_3,psp_i)]+=
+     $        sp_m(prod[i])*v_prod[i][3]*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_energy_change,psp_i)]+=
+     $        half*sp_m(prod[i])*vc_abs2(v_prod[i])*rate
+@#if 0
             else if (i == 3) then
                vc_set(v_prod[i],zero,zero,zero)
             end if
-         end if
+@#endif
       end do
             
 /*
@@ -1334,11 +1439,13 @@ loop: continue
 
       pr_reaction_decl(pr_reac)                         // Local  
       pr_background_decl(back)
-      integer i,i_0_1,i_0_2,nprod,back_i
-      real ni_1up,ni_2up2,up2,up,u_abs,uprime_abs,mom_src,m_i
+      integer i,j,i_0_1,i_0_2,nprod,back_i,test_i,psp_i
+      real ni_1up,ni_2up2,up2,up,u_abs,uprime_abs,m_i,e_src,e_eff
       vc_decl(u)
       vc_decl(uprime)
       vc_decl(vb_flow)
+      vc_decl(mom_src)
+      vc_decl(vr_i)
       logical init
 
       external eval_data                                // External
@@ -1382,37 +1489,60 @@ loop: continue
       vc_difference(u,vb_flow,uprime)
       uprime_abs=vc_abs(uprime)
 
-      scoring_data[pr_var_back_index(pr_var_back_mass,back)]+=
-     $     -sp_m(pr_background(back))*rate
-      mom_src=sp_m(pr_background(back))*(-half*up2*rate/uprime_abs**2
-     $     +ni_1up/uprime_abs)
-      scoring_data[pr_var_back_index(pr_var_back_momentum_vector,back)]+=
-     $     -sp_m(pr_background(back))*rate*u[1]
-     $     + mom_src*uprime[1]
-      scoring_data[pr_var_back_index(pr_var_back_momentum_2,back)]+=
-     $     -sp_m(pr_background(back))*rate*u[2]
-     $     + mom_src*uprime[2]
-      scoring_data[pr_var_back_index(pr_var_back_momentum_3,back)]+=
-     $     -sp_m(pr_background(back))*rate*u[3]
-     $     + mom_src*uprime[3]
-      scoring_data[pr_var_back_index(pr_var_back_energy,back)]+=
-     $     sp_m(pr_background(back))*(
-     $     -half*u_abs**2*rate
-     $     +vc_product(u,uprime)*ni_1up/uprime_abs
-     $     -half*(up2*vc_product(u,uprime)*rate/uprime_abs**2+ni_2up2))
-      do i=1,nprod
-         back_i=pr_background_lookup(pr_ts_prod(test,ts_reac,1,i))
-         if (back_i != 0) then
-            m_i=sp_m(pr_background(back_i))
-            scoring_data[pr_var_back_index(pr_var_back_mass,back_i)]+=m_i*rate
-            scoring_data[pr_var_back_index(pr_var_back_momentum_vector,back_i)]+=m_i*rate*u[1]
-            scoring_data[pr_var_back_index(pr_var_back_momentum_2,back_i)]+=
-     $           m_i*rate*u[2]
-            scoring_data[pr_var_back_index(pr_var_back_momentum_3,back_i)]+=
-     $           m_i*rate*u[3]
-            scoring_data[pr_var_back_index(pr_var_back_energy,back_i)]+=
-     $           half*m_i*rate*u_abs**2
+      do i=1,2
+         if (i == 1) then
+            m_i=sp_m(pr_background(back))
+            psp_i=pr_problem_sp_back(back)
+            do j=1,3
+               mom_src[j]=rate*u[j]
+     $              -(-half*up2*rate/uprime_abs**2+ni_1up/uprime_abs)*uprime[j]
+            end do
+            vc_copy(mom_src,vr_i)
+            e_src=half*u_abs**2*rate-vc_product(u,uprime)*ni_1up/uprime_abs
+     $           +half*(up2*vc_product(u,uprime)*rate/uprime_abs**2+ni_2up2)
+            e_eff=e_src
+         else if (i == 2) then
+            m_i=sp_m(pr_test(test))
+            psp_i=pr_problem_sp_test(test)
+            vc_scale(rate,u,vr_i)
+            e_eff=half*u_abs**2*rate
          end if
+         scoring_data[pr_var_problem_sp_index(pr_var_mass_change,psp_i)]+=
+     $        -m_i*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_vector,psp_i)]+=
+     $        -m_i*vr_i[1]
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_2,psp_i)]+=
+     $        -m_i*vr_i[2]
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_3,psp_i)]+=
+     $        -m_i*vr_i[3]
+         scoring_data[pr_var_problem_sp_index(pr_var_energy_change,psp_i)]+=
+     $        -m_i*e_eff
+      end do
+      do i=1,nprod
+         test_i=pr_test_lookup(pr_ts_prod(test,ts_reac,1,i))
+         if (test_i != 0) then
+            m_i=sp_m(pr_test(test_i))
+            psp_i=pr_problem_sp_test(test_i)
+            vc_copy(mom_src,vr_i)
+            e_eff=e_src
+         else
+            back_i=pr_background_lookup(pr_ts_prod(test,ts_reac,1,i))
+            assert(back_i != 0)
+            m_i=sp_m(pr_background(back_i))
+            psp_i=pr_problem_sp_back(back_i)
+            vc_scale(rate,u,vr_i)
+            e_eff=half*u_abs**2*rate
+         end if
+         scoring_data[pr_var_problem_sp_index(pr_var_mass_change,psp_i)]+=
+     $        m_i*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_vector,psp_i)]+=
+     $        m_i*vr_i[1]
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_2,psp_i)]+=
+     $        m_i*vr_i[2]
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_3,psp_i)]+=
+     $        m_i*vr_i[3]
+         scoring_data[pr_var_problem_sp_index(pr_var_energy_change,psp_i)]+=
+     $        m_i*e_eff
       end do
 
       return
@@ -1446,9 +1576,9 @@ loop: continue
 
       pr_reaction_decl(pr_reac)                         // Local
       pr_background_decl(back)
-      integer i,i_1_0,i_1_1,i_1_2
+      integer i,i_1_0,i_1_1,i_1_2,psp_i
       real ni_0,ni_1up,ni_2up2,up2,up,m_test,m_back,mom_src,
-     $     uprime_abs,usq
+     $     uprime_abs,usq,e_src
       vc_decl(u)
       vc_decl(uprime)
       vc_decl(vb_flow)
@@ -1504,20 +1634,32 @@ loop: continue
       m_test=independent_parameters[xs_var_m_test]
       m_back=independent_parameters[xs_var_m_back]
 
-      scoring_data[pr_var_back_index(pr_var_back_mass,back)]+=zero // NO CHANGE in species
+      psp_i=pr_problem_sp_back(back)
+      scoring_data[pr_var_problem_sp_index(pr_var_mass_change,psp_i)]+=zero // NO CHANGE in species
       mom_src=(m_test*m_back/(m_test+m_back))*(-half*up2*ni_0/uprime_abs**2
      $     +ni_1up/uprime_abs)
-      scoring_data[pr_var_back_index(pr_var_back_momentum_vector,back)]+=
+      scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_vector,psp_i)]+=
      $     mom_src*uprime[1]
-      scoring_data[pr_var_back_index(pr_var_back_momentum_2,back)]+=
+      scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_2,psp_i)]+=
      $     mom_src*uprime[2]
-      scoring_data[pr_var_back_index(pr_var_back_momentum_3,back)]+=
+      scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_3,psp_i)]+=
      $     mom_src*uprime[3]
-      scoring_data[pr_var_back_index(pr_var_back_energy,back)]+=
-     $     (two*m_test*m_back/(m_test+m_back)**2)
-     $     *(-half*m_back*ni_2up2
+      e_src=(two*m_test*m_back/(m_test+m_back)**2)*(-half*m_back*ni_2up2
      $     +half*(m_test+m_back)*vc_product(u,uprime)
      $     *(ni_1up/uprime_abs-half*up2*ni_0/uprime_abs**2))
+      scoring_data[pr_var_problem_sp_index(pr_var_energy_change,psp_i)]+=
+     $     e_src
+
+      psp_i=pr_problem_sp_test(test)
+      scoring_data[pr_var_problem_sp_index(pr_var_mass_change,psp_i)]+=zero 
+      scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_vector,psp_i)]+=
+     $     -mom_src*uprime[1]
+      scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_2,psp_i)]+=
+     $     -mom_src*uprime[2]
+      scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_3,psp_i)]+=
+     $     -mom_src*uprime[3]
+      scoring_data[pr_var_problem_sp_index(pr_var_energy_change,psp_i)]+=
+     $     -e_src
 
       // No product terms!
 
@@ -1553,11 +1695,12 @@ loop: continue
       pr_reaction_decl(pr_reac)                        // Local
       pr_background_decl(back)
       pr_background_decl(back_i)
+      pr_test_decl(test_i)
       sp_decl(prod[rc_product_max])
-      integer i,i_ediss,i_elediss,nprod,num_heavy_products,j_arr,k
+      integer i,i_ediss,i_elediss,nprod,num_heavy_products,j_arr,k,psp_i
       integer product_index[2]
       vc_decl(v_test)
-      real ediss,elediss,mass_total
+      real ediss,elediss,mass_total,m_i
       real mass[2]
       logical init
 
@@ -1600,23 +1743,43 @@ loop: continue
    dissociated velocities has been averaged out. Note: this may not work at 
    all for a time-dependent case.
 */
-      scoring_data[pr_var_back_index(pr_var_back_mass,back)]+=
+      psp_i=pr_problem_sp_back(back)
+      scoring_data[pr_var_problem_sp_index(pr_var_mass_change,psp_i)]+=
      $  -sp_m(pr_background(back))*rate
-      scoring_data[pr_var_back_index(pr_var_back_energy,back)]+=-elediss
+      scoring_data[pr_var_problem_sp_index(pr_var_energy_change,psp_i)]+=-elediss
+
       do i=1,3
          v_test[i]=independent_parameters[xs_var_v_test_1+i-1]
       end do
+      psp_i=pr_problem_sp_test(test)
+      m_i=sp_m(pr_test(test))
+      scoring_data[pr_var_problem_sp_index(pr_var_mass_change,psp_i)]+=
+     $        -m_i*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_vector,psp_i)]+=
+     $        -m_i*v_test[1]*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_2,psp_i)]+=
+     $        -m_i*v_test[2]*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_3,psp_i)]+=
+     $        -m_i*v_test[3]*rate
+         scoring_data[pr_var_problem_sp_index(pr_var_energy_change,psp_i)]+=
+     $        -half*m_i*vc_abs2(v_test)*rate
+
       do j_arr=1,pr_num_arrangements(test,ts_reac)
          num_heavy_products=0
          mass_total=zero
          do i=1,nprod
             prod[i]=pr_ts_prod(test,ts_reac,j_arr,i)
-            back_i=pr_background_lookup(prod[i])
-            if (back_i != 0) then
-               scoring_data[pr_var_back_index(pr_var_back_mass,back_i)]+=
-     $              sp_m(prod[i])*rate*pr_prod_mult(test,ts_reac,j_arr)
+            test_i=pr_test_lookup(prod[i])
+            if (test_i != 0) then
+               psp_i=pr_problem_sp_test(test_i)
+            else
+               back_i=pr_background_lookup(prod[i])
+               assert(back_i != 0)
+               psp_i=pr_problem_sp_back(back_i)
             end if
-            if (sp_sy(prod[i])  != 'e') then
+            scoring_data[pr_var_problem_sp_index(pr_var_mass_change,psp_i)]+=
+     $              sp_m(prod[i])*rate*pr_prod_mult(test,ts_reac,j_arr)
+            if (sp_sy(prod[i]) != 'e') then
                num_heavy_products++
                mass[num_heavy_products]=sp_m(prod[i])
                mass_total+=sp_m(prod[i])
@@ -1625,18 +1788,23 @@ loop: continue
          end do
          assert(num_heavy_products == 2)
          do k=1,num_heavy_products
-            back_i=pr_background_lookup(pr_ts_prod(test,ts_reac,j_arr,product_index[k]))
-            if (back_i != 0) then
-               scoring_data[pr_var_back_index(pr_var_back_momentum_vector,back_i)]+=
-     $              mass[k]*v_test[1]*rate*pr_prod_mult(test,ts_reac,j_arr)
-               scoring_data[pr_var_back_index(pr_var_back_momentum_2,back_i)]+=
-     $              mass[k]*v_test[2]*rate*pr_prod_mult(test,ts_reac,j_arr)
-               scoring_data[pr_var_back_index(pr_var_back_momentum_3,back_i)]+=
-     $              mass[k]*v_test[3]*rate*pr_prod_mult(test,ts_reac,j_arr)
-               scoring_data[pr_var_back_index(pr_var_back_energy,back_i)]+=
-     $              (half*mass[k]*vc_abs2(v_test)+two*ediss*(one-mass[k]/mass_total))
-     $              *rate*pr_prod_mult(test,ts_reac,j_arr)
+            test_i=pr_test_lookup(pr_ts_prod(test,ts_reac,j_arr,product_index[k]))
+            if (test_i != 0) then
+               psp_i=pr_problem_sp_test(test_i)
+            else
+               back_i=pr_background_lookup(pr_ts_prod(test,ts_reac,j_arr,product_index[k]))
+               assert(back_i != 0)
+               psp_i=pr_problem_sp_back(back_i)
             end if
+            scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_vector,psp_i)]+=
+     $           mass[k]*v_test[1]*rate*pr_prod_mult(test,ts_reac,j_arr)
+            scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_2,psp_i)]+=
+     $           mass[k]*v_test[2]*rate*pr_prod_mult(test,ts_reac,j_arr)
+            scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_3,psp_i)]+=
+     $           mass[k]*v_test[3]*rate*pr_prod_mult(test,ts_reac,j_arr)
+            scoring_data[pr_var_problem_sp_index(pr_var_energy_change,psp_i)]+=
+     $           (half*mass[k]*vc_abs2(v_test)+two*ediss*(one-mass[k]/mass_total))
+     $           *rate*pr_prod_mult(test,ts_reac,j_arr)
          end do
       end do
 
@@ -1730,15 +1898,17 @@ loop: continue
   We cannot pretend to be able to do mixed isotope dissociations anymore. 
   We would need a more complete species breakdown of the particle and 
   energy transfer rates. The same caveats apply to the momentum and
-  energy exchanges as in |track_dissoc|.
+  energy exchanges as in |track_dissoc|. NOT UPDATED TO DO TEST SCORING!!
+  Commented out as a result.
 */
       assert(sp_ncomp(pr_test(test)) == 1)
       assert(sp_count(pr_test(test),1) == 2)
 
+@#if 0
       assert(sp_sy(pr_background(back)) == 'e')
-      scoring_data[pr_var_back_index(pr_var_back_mass,back)]+=
+      scoring_data[pr_var_back_index(pr_var_mass_change,back)]+=
      $     -sp_m(pr_background(back))*rate
-      scoring_data[pr_var_back_index(pr_var_back_energy,back)]+=-eloss
+      scoring_data[pr_var_back_index(pr_var_energy_change,back)]+=-eloss
       do i=1,3
          v_test[i]=independent_parameters[xs_var_v_test_1+i-1]
       end do
@@ -1749,11 +1919,11 @@ loop: continue
             back_i=pr_background_lookup(pr_ts_prod(test,ts_reac,j_arr,i))
             if (back_i != 0) then
                if (sp_sy(prod[i]) == 'e') then
-                  scoring_data[pr_var_back_index(pr_var_back_mass,back_i)]+=
+                  scoring_data[pr_var_back_index(pr_var_mass_change,back_i)]+=
      $                 sp_m(pr_background(back_i))
      $                 *rate*(const(3.)-two*hfrac)*pr_prod_mult(test,ts_reac,j_arr)
                else
-                  scoring_data[pr_var_back_index(pr_var_back_mass,back_i)]+=
+                  scoring_data[pr_var_back_index(pr_var_mass_change,back_i)]+=
      $                 sp_m(pr_background(back_i))
      $                 *rate*two*(one-hfrac)*pr_prod_mult(test,ts_reac,j_arr)
                end if
@@ -1770,16 +1940,16 @@ loop: continue
          do k=1,num_heavy_products
             back_i=pr_background_lookup(product_index[k])
             if (back_i != 0) then
-               scoring_data[pr_var_back_index(pr_var_back_momentum_vector,back_i)]+=
+               scoring_data[pr_var_back_index(pr_var_momentum_change_vector,back_i)]+=
      $              mass[k]*v_test[1]*rate*two*(one-hfrac)
      $              *pr_prod_mult(test,ts_reac,j_arr)
-               scoring_data[pr_var_back_index(pr_var_back_momentum_2,back_i)]+=
+               scoring_data[pr_var_back_index(pr_var_momentum_change_2,back_i)]+=
      $              mass[k]*v_test[2]*rate*two*(one-hfrac)
      $              *pr_prod_mult(test,ts_reac,j_arr)
-               scoring_data[pr_var_back_index(pr_var_back_momentum_3,back_i)]+=
+               scoring_data[pr_var_back_index(pr_var_momentum_change_3,back_i)]+=
      $              mass[k]*v_test[3]*rate*two*(one-hfrac)
      $              *pr_prod_mult(test,ts_reac,j_arr)
-               scoring_data[pr_var_back_index(pr_var_back_energy,back_i)]+=
+               scoring_data[pr_var_back_index(pr_var_energy_change,back_i)]+=
      $              (half*mass[k]*vc_abs2(v_test)
      $              +two*ediss*(one-mass[k]/mass_total))
      $              *rate*two*(one-hfrac)*pr_prod_mult(test,ts_reac,j_arr)
@@ -1787,6 +1957,7 @@ loop: continue
             end if
          end do
       end do
+@#endif
 
       return
       end
@@ -1865,7 +2036,7 @@ actually done at the source point or as a post-processor.
       lc_decl(zone_loc)
       vc_decl(vb_flow)
       vc_decl(v_src)
-      integer i,i_e_loss,i_e_src,num_lines,i_e_rate,i_gen_rate
+      integer i,i_e_loss,i_e_src,num_lines,i_e_rate,i_gen_rate,psp_1,psp_2
       integer lines[max_lines],e_rates[max_lines]
       real e_loss,e_e_loss,e_e_src
       character*tl_tag_length line
@@ -1934,6 +2105,7 @@ actually done at the source point or as a post-processor.
      $           /sp_m(pr_background(back_2)))
             vc_copy(vb_flow,v_src)
             e_loss=const(1.5)*bk_temp(back_2,lc_zone(zone_loc))
+     $           +half*sp_m(pr_background(back_2))*vc_abs2(vb_flow)
          else if (est == tl_est_collision) then
             do i=1,3
                v_src[i]=independent_parameters[xs_var_v_test_1+i-1]
@@ -1992,21 +2164,35 @@ actually done at the source point or as a post-processor.
 /*
    Collision scoring of coupling scores
 */
-      scoring_data[pr_var_back_index(pr_var_back_mass,back_1)]+=
+      psp_1=pr_problem_sp_back(back_1)
+      psp_2=pr_problem_sp_back(back_2)
+      scoring_data[pr_var_problem_sp_index(pr_var_mass_change,psp_1)]+=
      $  -sp_m(pr_background(back_1))*rate
-      scoring_data[pr_var_back_index(pr_var_back_mass,back_2)]+=
+      scoring_data[pr_var_problem_sp_index(pr_var_mass_change,psp_2)]+=
      $     -sp_m(pr_background(back_2))*rate
-      scoring_data[pr_var_back_index(pr_var_back_momentum_vector,back_2)]+=
+      scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_vector,psp_2)]+=
      $     -sp_m(pr_background(back_2))*v_src[1]*rate 
-      scoring_data[pr_var_back_index(pr_var_back_momentum_2,back_2)]+=
+      scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_2,psp_2)]+=
      $     -sp_m(pr_background(back_2))*v_src[2]*rate 
-      scoring_data[pr_var_back_index(pr_var_back_momentum_3,back_2)]+=
+      scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_3,psp_2)]+=
      $     -sp_m(pr_background(back_2))*v_src[3]*rate 
-      scoring_data[pr_var_back_index(pr_var_back_energy,back_1)]+=
+      scoring_data[pr_var_problem_sp_index(pr_var_energy_change,psp_1)]+=
      $     e_e_src-e_e_loss
-      scoring_data[pr_var_back_index(pr_var_back_energy,back_2)]+=
+      scoring_data[pr_var_problem_sp_index(pr_var_energy_change,psp_2)]+=
      $     -e_loss*rate
 
+      psp_2=pr_problem_sp_test(test)
+      scoring_data[pr_var_problem_sp_index(pr_var_mass_change,psp_2)]+=
+     $  sp_m(pr_test(test))*rate
+      scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_vector,psp_2)]+=
+     $     sp_m(pr_test(test))*v_src[1]*rate 
+      scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_2,psp_2)]+=
+     $     sp_m(pr_test(test))*v_src[2]*rate 
+      scoring_data[pr_var_problem_sp_index(pr_var_momentum_change_3,psp_2)]+=
+     $     sp_m(pr_test(test))*v_src[3]*rate 
+      scoring_data[pr_var_problem_sp_index(pr_var_energy_change,psp_2)]+=
+     $     e_loss*rate    // Assuming all goes from back to test.
+      
       return
       end
 
