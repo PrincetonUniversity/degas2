@@ -2,6 +2,11 @@
 \Title{collide}
 
 % $Log$
+% Revision 1.23  1999/03/25 20:57:07  dstotler
+% Replace I_l... with I_0... (charge exchange) and I_1... (elastic) for
+% clarity. Clean up some of Randy's code. Replace rand_angle with
+% simpler inline calls.
+%
 % Revision 1.22  1998/12/22 16:42:51  dstotler
 % Corrected sign error in 1.5 T_i term in recombination_data.
 %
@@ -164,6 +169,11 @@
      $     scoring_data,rn_args(x))
       else if (rc_reaction_type(pr_reaction(pr_reac)) == 'elastic') then
          call elastic(pr_test_args(test),pr_reaction_args(ts_reac),
+     $     rate,independent_parameters,
+     $     nprod,sp_args(prod),vc_args(v_prod[1]),w_prod,
+     $     scoring_data,rn_args(x))
+      else if (rc_reaction_type(pr_reaction(pr_reac)) == 'bgk_elastic') then
+         call bgk_elastic(pr_test_args(test),pr_reaction_args(ts_reac),
      $     rate,independent_parameters,
      $     nprod,sp_args(prod),vc_args(v_prod[1]),w_prod,
      $     scoring_data,rn_args(x))
@@ -394,7 +404,7 @@ loop: continue
       pr_reaction_decl(pr_reac)                        // Local
       pr_background_decl(back)
       pr_background_decl(back_i)
-      integer i,rm_theta_prob,theta_count,coll_count,
+      integer i,rm_theta_prob,
      $        i_sigv_max,i_angle_min,i_cx,i_csang,jdep_cx
       vc_decl(v_test)
       vc_decl(v_back)
@@ -402,7 +412,9 @@ loop: continue
       vc_decl(vt_plasma_frame)
       vc_decl(vb_therm)
       vc_decl(vrel)
+
       real v_thermal,sigvmax,tempmax,cxsec,cx_v,m_i,angle,angle_min,ran
+
       logical init
 
       external eval_data                               // External
@@ -411,6 +423,7 @@ loop: continue
       save tempmax,init,i_sigv_max,i_angle_min,i_cx,i_csang
       data sigvmax / zero /
       data tempmax / zero /
+
       data init/.true./
 
       if (init) then
@@ -482,6 +495,7 @@ loop: continue
     May want to turn off this |assert| (as in |chargex|) so that 
     rejection can be disabled by setting |sigvmax| = 0.
 */
+
       assert(cx_v<=sigvmax)
       rn_next(ran,x)
 
@@ -555,6 +569,122 @@ loop: continue
          end if
       end do
 
+      return
+      end
+
+@ Process an n-n collision. Arguments are the same as for |chargex|.
+
+/*    A concise representations of the equations used is presented in
+      Morse, T.F., "Kinetic Model Equations for a Gas Mixture", The Physics of Fluids,
+      1964, 7(12): pgs. 2012-2013.   */
+
+@<Functions...@>=
+      subroutine bgk_elastic(pr_test_dummy(test),pr_reaction_dummy(ts_reac),
+     $     rate,independent_parameters,
+     $     nprod,sp_dummy(prod),vc_dummy(v_prod),w_prod,
+     $     scoring_data,rn_dummy(x))
+
+      implicit_none_f77
+      pr_common                                        // Common
+      rc_common
+      rd_common
+      sp_common
+      bk_common
+      zn_common
+      implicit_none_f90
+
+      rd_decls
+      st_decls
+      pr_test_decl(test)                               // Input
+      pr_reaction_decl(ts_reac)
+
+      sp_decl(prod[rc_product_max])
+      vc_decl(v_prod[rc_product_max])
+      real w_prod[rc_product_max],scoring_data[scoring_data_max]
+      rn_decl(x)                                       // Input/output
+
+      pr_reaction_decl(pr_reac)                        // Local
+      pr_background_decl(back)
+      pr_background_decl(back_i)
+
+      vc_decl(v_test)
+      vc_decl(v_back)
+      vc_decl(vb_flow)
+      vc_decl(vt_flow)
+      vc_decl(v_diff)
+      vc_decl(v_ave)
+      vc_decl(vt_plasma_frame)
+      vc_decl(vb_therm)
+      vc_decl(vrel)
+
+      integer i,nprod,back_test
+
+      real v_thermal,m_i,ran,rate
+      real independent_parameters[xs_max_indep_params]
+      real m_total,m_coef,temp_test,temp_back,temp_ave
+
+      pr_reac=pr_ts_rc(test,ts_reac)  // Index to problem-reaction list
+      nprod=rc_product_num(pr_reaction(pr_reac))
+      back=pr_ts_bk(test,ts_reac)
+
+      if ( pr_test(test) == pr_background(back) ) then
+
+/*    If like-species collision - select thermal velocity from background distribution   */
+
+         do i=1,3
+            vb_flow[i]=independent_parameters[xs_var_v_flow_1+i-1]
+         end do
+         v_thermal=sqrt(independent_parameters[xs_var_sp_temperature])
+
+      else
+
+/*    If unlike-species collision - select thermal velocity from average distribution   */
+
+         m_total = sp_m(pr_test(test)) + sp_m(pr_background(back))
+         m_coef = 2.*sp_m(pr_test(test))*sp_m(pr_background(back))/m_total**2
+         back_test = pr_background_lookup(pr_test(test))
+
+         do i=1,3
+            vb_flow[i] = independent_parameters[xs_var_v_flow_1+i-1]
+            vt_flow[i] = background_v(i,back_test,independent_parameters(xs_var_zone))
+            v_ave[i] = (sp_m(pr_background(back_test))*vt_flow[i]+sp_m(pr_background(back))*vb_flow[i])/m_total
+         end do
+
+         vc_difference(vb_flow,vt_flow,v_diff)
+         vc_copy(v_ave,vb_flow)
+
+         temp_test = bk_temp(back_test,independent_parameters(xs_var_zone))
+         temp_back = bk_temp(back,independent_parameters(xs_var_zone))
+
+         temp_ave = temp_test + m_coef*
+     &   ((temp_back-temp_test)+sp_m(pr_background(back))*vc_abs2(v_diff)/(6.))
+
+         v_thermal = sqrt( temp_ave / sp_m(pr_test(test)) )
+
+      endif
+
+/*    Select Background Thermal Velocity   */
+
+      do i=1,3
+         rn_gauss_next(ran,x)
+         vb_therm[i]=v_thermal*ran
+      end do
+
+/*    End of Neutral Selection - set products */
+
+      assert(pr_num_arrangements(test,ts_reac) == 1) 
+
+      do i=1,nprod
+         prod[i]=pr_ts_prod(test,ts_reac,1,i)
+         if ( i == 1 ) then
+            w_prod[i] = zero
+            vc_set(v_prod[i],zero,zero,zero)
+         else if ( i == 2 ) then
+            w_prod[i] = one
+            vc_add(vb_therm,vb_flow,v_prod[i])
+         endif
+      end do
+      
       return
       end
 
@@ -1088,6 +1218,7 @@ of suppressed absorption.
 /*
    Collision scoring of coupling scores
 */
+
       scoring_data[pr_var_back_index(pr_var_back_mass,back)]+=
      $  -sp_m(pr_background(back))*rate
       scoring_data[pr_var_back_index(pr_var_back_energy,back)]+=-eioniz
@@ -1817,6 +1948,7 @@ loop: continue
    The code we need here looks so much like the corresponding reaction
    processing routine that we might as well just call it.
 */
+
       call ionize(pr_test_args(test),pr_reaction_args(ts_reac),
      $     rate,independent_parameters,
      $     nprod,sp_args(prod),vc_args(v_prod[1]),w_prod,
