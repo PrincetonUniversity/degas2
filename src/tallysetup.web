@@ -2,6 +2,9 @@
 \Title{tallysetup}
 
 % $Log$
+% Revision 1.3  1998/01/14 21:09:00  dstotler
+% Implemented conversions.
+%
 % Revision 1.2  1997/08/19 14:37:09  karney
 % Changes to support compilation under f90.  This involved extensive changes
 % in array.hweb and sysdep.web.  Nearly all other files needed some
@@ -30,6 +33,7 @@ interface can be developed to replace this code.
 @I tally.hweb
 @I zone.hweb
 @I problem.hweb
+@I sources.hweb
 @I species.hweb
 @I reaction.hweb
 @I materials.hweb
@@ -459,6 +463,21 @@ c      integer pr_rc_type[pr_reaction_num]
      $              tl_type_reaction,tl_geom_detector,pointer,
      $              'emission_rate_'\/trim(sp_sy(pr_test(test)))\/'_alpha',
      $              2,indep_var,tab_index,num_conversions,conversions,
+     $              conversion_packages,estimator,pr_rc_type)     
+               tab_index[1]=detector_num_views[pointer]
+               indep_var[2]=tl_index_test_author
+               tab_index[2]=so_type_num+pr_reaction_num+pr_pmi_num
+               indep_var[3]=tl_index_wavelength_bin
+               tab_index[3]=detector_tab_index[pointer]
+            
+               num_conversions=0
+
+               estimator[pr_rc_ionize_suppress]=tl_est_track
+               
+               call define_tally(trim(sp_sy(pr_test(test)))\/'alpha spectrum detail',
+     $              tl_type_reaction,tl_geom_detector,pointer,
+     $              'emission_rate_'\/trim(sp_sy(pr_test(test)))\/'_alpha',
+     $              3,indep_var,tab_index,num_conversions,conversions,
      $              conversion_packages,estimator,pr_rc_type)     
             end if
 
