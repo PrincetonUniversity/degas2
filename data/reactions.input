@@ -111,4 +111,12 @@ dd2_05_elastic D+ + D2 => D+ + D2
 ../data/dd2_05_elastic.nc
 elastic
 
+electron impact ionization of argon
+arionize e + Ar -> e + Ar+ + e
+../data/arionize.nc
+ionize_suppress
 
+argon charge exchange
+archex Ar+ + Ar -> Ar + Ar+
+../data/archex.nc
+chargex
