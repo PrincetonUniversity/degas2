@@ -2,6 +2,9 @@
 \Title{pmisetup}
 
 % $Log$
+% Revision 1.6  1998/05/08 14:04:51  dstotler
+% Initialize unused elements of pmi_product.
+%
 % Revision 1.5  1998/04/16 15:31:05  karney
 % Various changes to clean up code in support of Linux.
 %
@@ -21,11 +24,49 @@
 % Adding to repository.
 %
 
-@* Introduction.
+@* Routines used to set up the PMI file.
 
 \ID{$Id$}
 
-Introduction\ldots
+The file \verb+pmi_infile+ identified in \verb+degas2.in+ describes 
+all of the plasma-material interactions
+(PMI) available in DEGAS 2. Each interaction is described by four separate
+lines:
+
+\begin{enumerate}
+\item The full name of the interaction
+\item A blank delimited sequence of the form
+\begin{verbatim}
+species + material -> product1 + product2 + ...
+\end{verbatim}
+where ``species'' is a species symbol
+and ``material'' is
+a symbol from the list in \verb+materials_infile+. 
+All of the products should be legitimate species. Currently, only binary
+reactions of this form are supported. Essentially all PMI currently in use
+yield zero (e.g., an exit) or one product; support of additional products 
+within a given PMI will require some additional code. With the 
+``\verb+->+'' symbol,
+the PMI holds for all isotopically equivalent species; it's a 
+generic PMI. Non-generic PMI are specified by a ``\verb+=>+'' symbol.
+For the latter, the PMI applies to {\em only} the species explicitly appearing
+in the file.
+\item The path name (relative or absolute) of the netCDF data file
+providing the yield and PMI handling data for this interaction.
+\item  The PMI type. This is used to group PMI which are 
+sufficiently similar that
+their products and collisions can be processed using the same code.
+Currently recognized types include
+\begin{description}
+\item[reflection] Reflection of the test particle with a significant
+fraction of its incident energy.
+\item[adsorption] Permanent adsorption 
+(i.e., removal of the incident test particle from
+the problem).
+\item[desorption] Thermal re-emission of not-permanently adsorbed test 
+particles.
+\end{description}
+\end{enumerate}
 
 @m FILE 'pmisetup.web'
 
@@ -43,7 +84,7 @@ Introduction\ldots
 @a
       @<Functions and Subroutines@>
 
-@ Read in data from \verb+pmi.input+.
+@ Read in data from \verb+pmi_infile+.
 
 @<Functions...@>=
       subroutine read_pmi

@@ -2,6 +2,9 @@
 \Title{elementsetup}
 
 % $Log$
+% Revision 1.19  1999/03/25 20:51:40  dstotler
+% Added check(s) on filenames_array.
+%
 % Revision 1.18  1998/04/16 15:31:00  karney
 % Various changes to clean up code in support of Linux.
 %
@@ -63,11 +66,32 @@
 %
 
 
-@* Introduction.
+@* Routines used to set up the elements file.
 
 \ID{$Id$}
 
-Introduction\ldots
+The \verb+elements_infile+ identified in the \verb+degas2.in+ file
+lists all of the elements available to DEGAS 2 for
+use in constructing the species. 
+As shown in this example, the
+atomic number, a symbol, the atomic mass (in AMU), and a descriptive
+name are provided. The program |datasetup| reads this file,
+translates this information into DEGAS 2 data, and generates the netCDF file
+with the symbolic name \verb+elementsfile+.
+
+\begin{verbatim}
+#  Z Sy    amu          name
+
+   0 0     0            geometry
+  -1 e     5.4858e-4    electron
+   0 n     1.008665     neutron
+   1 H     1.007825     hydrogen
+   1 D     2.0140       deuterium
+   1 T     3.01605      tritium
+   2 He3   3.01603      helium-3
+   2 He    4.002602     helium
+   3 Li    6.941        lithium
+\end{verbatim}
 
 @m FILE 'elementsetup.web'
 
@@ -83,7 +107,7 @@ Introduction\ldots
 @a
       @<Functions and Subroutines@>
 
-@ Read is data from \verb+elements.input+.
+@ Read in data from \verb+elements_infile+.
 
 @<Functions...@>=
       subroutine read_elements

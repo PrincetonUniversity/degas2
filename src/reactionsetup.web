@@ -2,6 +2,10 @@
 \Title{reactionsetup}
 
 % $Log$
+% Revision 1.26  1999/04/20 20:13:57  dstotler
+% Add setting of reaction_generic array, in analogy with
+% pmisetup.web. Fill unused elements of rc_product with int_unused.
+%
 % Revision 1.25  1999/03/25 20:52:35  dstotler
 % Added check(s) on filenames_array.
 %
@@ -84,11 +88,87 @@
 %
 
 
-@* Introduction.
+@* Routines used to set up the reactions file.
 
 \ID{$Id$}
 
-Introduction\ldots
+The file \verb+reaction_infile+ identified in the \verb+degas2.in+
+file describes all of the reactions available in
+DEGAS 2. Each reaction is represented by four separate lines:
+
+\begin{enumerate}
+\item The full name of the reaction
+\item A blank delimited sequence of entries like
+\begin{verbatim}
+reagent1 + reagent2 -> product1 + product2 + ...
+\end{verbatim}
+where reagent1, product1, etc. are species symbols.
+Currently only binary reactions are supported. Most reactions involve
+one background reagent and one test reagent. This ordering is now enforced
+by |problemsetup|. Reactions between two background species 
+(e.g., recombination) are also permitted provided at least one of the
+products is a test species. Such reactions are treated as sources.
+\item The path name (relative or absolute) of the netCDF data file
+providing the reaction rate and collision handling data for this reaction.
+\item The reaction type. This is used to group reactions which are sufficiently
+similar that their products and collisions can be processed using the
+same code. Currently recognized types include
+\begin{description}
+\item[chargex] charge exchange
+\item[elastic] ion - neutral elastic scattering
+\item[dissoc] Molecular dissociation and dissociative ionization
+\item[dissoc\_rec] Molecular dissociative recombination
+\item[ionize] Ionization
+\item[ionize\_suppress] Ionization handled with the technique of suppressed
+absorption.
+\item[recombination] Recombination; is actually a source of neutral test 
+species.
+\end{description}
+\end{enumerate}
+
+Here are some example reactions:
+
+\begin{verbatim}
+electron impact ionization of hydrogen
+hionize	e + H *  -> e + H+ + e 
+../data/hionize.nc
+ionize_suppress
+
+electron recombination of hydrogen 
+hrecombine e + H+ -> H *
+../data/hrecombine.nc
+recombination
+
+hydrogen charge exchange
+hchex	H+ + H -> H + H+
+../data/hchex.nc
+chargex
+
+molecular hydrogen dissociation
+h2dis e + H2 -> e + H + H
+../data/h2dis.nc
+dissoc
+\end{verbatim}
+
+Again, this input file is read by |datasetup|, 
+translated into DEGAS 2 data, and written into a netCDF file. The
+corresponding symbolic name in \verb+degas2.in+ is \verb+reactionfile+.
+
+Note that adding a new reaction to this file involves two tasks beyond 
+inserting the appropriate lines in \verb+reaction_infile+. First, the 
+netCDF file for the atomic physics data must be generated.
+The second task would be to write subroutines for setting up the products and
+handling collisions.
+This would be necessary only if a new reaction type
+were being added.
+
+All of the entries in the above example file are considered 
+generic reactions. That is, each reaction specified is available for
+all isotopically equivalent reagents and products. 
+The code handles automatically the various isotopic possibilities. 
+Reactions which should apply to only specific species (e.g., ion-neutral
+elastic scattering) can be identified by replacing the ``\verb+->+''
+symbol with ``\verb+=>+''.
 
 @m FILE 'reactionsetup.web'
 
@@ -105,7 +185,7 @@ Introduction\ldots
 @a
       @<Functions and Subroutines@>
 
-@ Read is data from \verb+reactions.input+.
+@ Read in data from \verb+reactions_infile+.
 
 @<Functions...@>=
       subroutine read_reactions
