@@ -2,6 +2,24 @@
 \Title{boxgen}
 
 % $Log$
+% Revision 1.13  1999/07/19 19:28:51  karney
+% (1) Remove much dead code in random.web.
+%
+% (2) Add more timing tests in randomtest.web.
+%
+% (3) Implement |geometry_symmetry_oned| where $y$ and $z$ coordinates are
+% ignored.
+%
+% This is treated exactly like goemetry_symmetry_plane, except that there's a
+% additional transformation defined to carry a particle from zmin to zmax and
+% vice versa.
+%
+% (4) Implement partitioning of symmetry direction via additional
+% zonearray[0:ndiv-1], ndiv, and facearray[0:ndiv] arguments to
+% decompose_polygon.  zonearray[k] has additional faces facearray[k] and
+% -facearray[k-1] added.  (See boxgen.web for sample code, although the
+% zonearray feature is not properly exercised yet.)
+%
 % Revision 1.12  1999/05/25 13:31:25  dstotler
 % Allocate & set default value for source_num_checkpoints. Add
 % so_set_run_flags macro call.
@@ -166,7 +184,7 @@ purposes of scoring.
 @m z_min zero
 @m z_max one
 @m ny 1
-@m y_min -one
+@m y_min (-one)
 @m y_max one
 
 @f box_localcommon integer
@@ -537,7 +555,7 @@ A single source, a gas puff of H, is set up uniformly along |x| = |x_min|.
          if (strata[sector]==4 && plasma_lookup(sector)!=0) then
 @#endif
          if (strata[sector]==4 
-     $     && int_lookup(sector,target_sector[1],sc_target_num)) then
+     $     && sc_target_check(int_lookup(sector,target_sector[1],sc_target_num))) then
             so_seg_tot++
             var_realloca(source_current)
             var_realloca(source_segment_ptr)
@@ -2090,7 +2108,7 @@ c
       external f, jac
       integer neq, itol, itask, istate, iopt, lrw, iwork, liw, mf
       real y, t, tout, rtol, atol, rwork
-      dimension neq(1), y(1), rtol(1), atol(1), rwork(lrw), iwork(liw)
+      dimension neq(*), y(*), rtol(*), atol(*), rwork(lrw), iwork(liw)
       external prepj, solsy
       integer illin, init, lyh, lewt, lacor, lsavf, lwm, liwm,
      1   mxstep, mxhnil, nhnil, ntrep, nslast, nyh, iowns
@@ -2698,7 +2716,7 @@ clll. optimize
       real rowns,
      1   ccmax, el0, h, hmin, hmxi, hu, rc, tn, uround
       real c, r, s, tp
-      dimension yh(nyh,1), dky(1)
+      dimension yh(nyh,*), dky(*)
       common /ls0001/ rowns(209),
      2   ccmax, el0, h, hmin, hmxi, hu, rc, tn, uround,
      3   iownd(14), iowns(6),
@@ -2844,8 +2862,8 @@ clll. optimize
      2   ccmax, el0, h, hmin, hmxi, hu, rc, tn, uround
       real dcon, ddn, del, delp, dsm, dup, exdn, exsm, exup,
      1   r, rh, rhdn, rhsm, rhup, told, vnorm
-      dimension neq(1), y(1), yh(nyh,1), yh1(1), ewt(1), savf(1),
-     1   acor(1), wm(1), iwm(1)
+      dimension neq(*), y(*), yh(nyh,*), yh1(*), ewt(*), savf(*),
+     1   acor(*), wm(*), iwm(*)
       common /ls0001/ conit, crate, el(13), elco(13,12),
      1   hold, rmax, tesco(3,12),
      2   ccmax, el0, h, hmin, hmxi, hu, rc, tn, uround, iownd(14),
@@ -3405,8 +3423,8 @@ clll. optimize
      1   ccmax, el0, h, hmin, hmxi, hu, rc, tn, uround
       real con, di, fac, hl0, r, r0, srur, yi, yj, yjj,
      1   vnorm
-      dimension neq(1), y(1), yh(nyh,1), ewt(1), ftem(1), savf(1),
-     1   wm(1), iwm(1)
+      dimension neq(*), y(*), yh(nyh,*), ewt(*), ftem(*), savf(*),
+     1   wm(*), iwm(*)
       common /ls0001/ rowns(209),
      2   ccmax, el0, h, hmin, hmxi, hu, rc, tn, uround,
      3   iownd(14), iowns(6),
@@ -3570,7 +3588,7 @@ clll. optimize
       real rowns,
      1   ccmax, el0, h, hmin, hmxi, hu, rc, tn, uround
       real di, hl0, phl0, r
-      dimension wm(1), iwm(1), x(1), tem(1)
+      dimension wm(*), iwm(*), x(*), tem(*)
       common /ls0001/ rowns(209),
      2   ccmax, el0, h, hmin, hmxi, hu, rc, tn, uround,
      3   iownd(14), iowns(6),
@@ -3616,7 +3634,7 @@ c-----------------------------------------------------------------------
       integer n, itol
       integer i
       real rtol, atol, ycur, ewt
-      dimension rtol(1), atol(1), ycur(n), ewt(n)
+      dimension rtol(*), atol(*), ycur(n), ewt(n)
 c
       go to (10, 20, 30, 40), itol
  10   continue
@@ -3677,7 +3695,7 @@ c-----------------------------------------------------------------------
       integer ieh, ils
       integer i, lenils, lenrls
       real rsav,   rls
-      dimension rsav(1), isav(1)
+      dimension rsav(*), isav(*)
       common /ls0001/ rls(218), ils(39)
       common /eh0001/ ieh(2)
       data lenrls/218/, lenils/39/
