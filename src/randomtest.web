@@ -2,6 +2,24 @@
 \Title{randomtest}
 
 % $Log$
+% Revision 1.11  1999/07/19 19:29:00  karney
+% (1) Remove much dead code in random.web.
+%
+% (2) Add more timing tests in randomtest.web.
+%
+% (3) Implement |geometry_symmetry_oned| where $y$ and $z$ coordinates are
+% ignored.
+%
+% This is treated exactly like goemetry_symmetry_plane, except that there's a
+% additional transformation defined to carry a particle from zmin to zmax and
+% vice versa.
+%
+% (4) Implement partitioning of symmetry direction via additional
+% zonearray[0:ndiv-1], ndiv, and facearray[0:ndiv] arguments to
+% decompose_polygon.  zonearray[k] has additional faces facearray[k] and
+% -facearray[k-1] added.  (See boxgen.web for sample code, although the
+% zonearray feature is not properly exercised yet.)
+%
 % Revision 1.10  1999/02/02 15:04:34  dstotler
 % Commented out call to test_string since no user interaction is
 % prompted.
@@ -98,10 +116,10 @@ $259243462334031/2^{48} \approx 0.9210177947737144$.
       rn_decls
       sy_decls
 
-/*
+@#if 0
       call test_prec
       stop
-*/
+@#endif
 
       write(stdout,*) 'Test of random numbers'
       call string_to_seed('31415926535897932',seed) // $\lfloor 10^{16} \pi \rfloor$
@@ -134,7 +152,9 @@ $259243462334031/2^{48} \approx 0.9210177947737144$.
 
 
 /* Write out the thousandth random number */
-/*      rn_next(x,tag) */            // $259243462334031/2^{48} \approx 0.9210177947737144$
+@#if 0
+      rn_next(x,tag)             // $259243462334031/2^{48} \approx 0.9210177947737144$
+@#endif
       x=xx[1000-880-1]
       write(stdout,*) '1000th number (0.9210177947737144) = ',x
       
@@ -463,9 +483,10 @@ c     write(stdout,*) '1000th number = ', x[1100-1]
       return
       end
 
-@* Timing results
+@* Timing results.
 
 tern (NAG f90)
+\begin{verbatim}
  Test of random numbers
  Seed (31415926535897932) = 31415926535897932
  Seed (12169046133858735) = 12169046133858735
@@ -489,8 +510,10 @@ tern (NAG f90)
  seed size for random_number = 1
  Time of random_number (fast) =   2.7900000000000010E-07
  Time of random_number =   2.6500000000000006E-07
+\end{verbatim}
 
 tern (PGI f90)
+\begin{verbatim}
  Test of random numbers
  Seed (31415926535897932) = 31415926535897932
  Seed (12169046133858735) = 12169046133858735
@@ -514,8 +537,10 @@ tern (PGI f90)
  seed size for random_number =          34
  Time of random_number (fast) =  7.8999999999999913E-008
  Time of random_number =  1.1699999999999999E-007
+\end{verbatim}
 
 cucaracha (f77)
+\begin{verbatim}
  Test of random numbers
  Seed (31415926535897932) = 31415926535897932
  Seed (12169046133858735) = 12169046133858735
@@ -537,8 +562,10 @@ cucaracha (f77)
  Time of new test5 =    3.4246873855591D-08
  Time of new test6 =    4.9849987030029D-08
  Note: Nonstandard floating-point mode enabled 
+\end{verbatim}
 
 mars (f77)
+\begin{verbatim}
  Test of random numbers
  Seed (31415926535897932) = 31415926535897932
  Seed (12169046133858735) = 12169046133858735
@@ -559,8 +586,10 @@ mars (f77)
  Time of new test4 =  1.805601119995117E-008
  Time of new test5 =  3.913764953613281E-008
  Time of new test6 =  3.181757926940919E-008
+\end{verbatim}
 
 mcurie (f90)
+\begin{verbatim}
  Test of random numbers
  Seed (31415926535897932) = 31415926535897932
  Seed (12169046133858735) = 12169046133858735
@@ -584,8 +613,10 @@ mcurie (f90)
  seed size for random_number = 1
  Time of random_number (fast) = 2.69600868225097673E-8
  Time of random_number = 3.44620704650878881E-8
+\end{verbatim}
 
 killeen (f90)
+\begin{verbatim}
  Test of random numbers
  Seed (31415926535897932) = 31415926535897932
  Seed (12169046133858735) = 12169046133858735
@@ -609,8 +640,10 @@ killeen (f90)
  seed size for random_number = 1
  Time of random_number (fast) = 6.868979999999251E-8
  Time of random_number = 5.860128599999805E-8
+\end{verbatim}
 
 hecate
+\begin{verbatim}
  Test of random numbers
  Seed (31415926535897932) = 31415926535897932
  Seed (12169046133858735) = 12169046133858735
@@ -634,6 +667,7 @@ hecate
  seed size for random_number = 64
  Time of random_number (fast) = 1.38803100585937497E-7
  Time of random_number = 1.38748502731323258E-7
+\end{verbatim}
 
 Summary
 hecate, mcurie, mars, tern (nag+pgi) doesn't care about lag (63 vs 37)
