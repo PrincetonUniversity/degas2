@@ -2,6 +2,9 @@
 \Title{speciesetup}
 
 % $Log$
+% Revision 1.22.2.1  1999/12/16 19:03:17  dstotler
+% Move input file documentation from manual to here.
+%
 % Revision 1.22  1999/03/25 20:52:45  dstotler
 % Added check(s) on filenames_array.
 %
@@ -164,7 +167,7 @@ and generates the netCDF file corresponding to the symbolic name
       external get_multiplicity // External
       integer get_multiplicity
 
-      integer length,p,b,e // Local
+      integer length,p,b,e,i // Local
       character*LINELEN line
       character*FILELEN tempfile     //local
 
@@ -211,6 +214,10 @@ loop1: continue
       sp_ncomp(sp_num) = 0
       sp_z(sp_num)=0
       sp_m(sp_num)=zero
+      do i=1,sp_ncomp_max
+         sp_el(sp_num,i)=int_uninit
+         sp_count(sp_num,i)=int_uninit
+      end do
 /*
    Loop over individual ``elements''
 */
@@ -239,7 +246,7 @@ loop2: continue
 */
          assert( next_token(line,b,e,p) )
          sp_el(sp_num,sp_ncomp(sp_num)) = el_lookup(line(b:e))
-         assert( sp_el(sp_num,sp_ncomp(sp_num)) > 0)
+         assert(el_check(sp_el(sp_num,sp_ncomp(sp_num))))
 /*
    Compute net charge of species. This is = 0 by default; nonzero values are
    arrived at by incorporating the appropriate number (positive or negative) of electrons.
