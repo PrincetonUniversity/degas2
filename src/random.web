@@ -2,6 +2,24 @@
 \Title{random numbers}
 
 % $Log$
+% Revision 1.10  1999/07/19 19:29:00  karney
+% (1) Remove much dead code in random.web.
+%
+% (2) Add more timing tests in randomtest.web.
+%
+% (3) Implement |geometry_symmetry_oned| where $y$ and $z$ coordinates are
+% ignored.
+%
+% This is treated exactly like goemetry_symmetry_plane, except that there's a
+% additional transformation defined to carry a particle from zmin to zmax and
+% vice versa.
+%
+% (4) Implement partitioning of symmetry direction via additional
+% zonearray[0:ndiv-1], ndiv, and facearray[0:ndiv] arguments to
+% decompose_polygon.  zonearray[k] has additional faces facearray[k] and
+% -facearray[k-1] added.  (See boxgen.web for sample code, although the
+% zonearray feature is not properly exercised yet.)
+%
 % Revision 1.9  1998/04/28 19:53:46  karney
 % Include a kludge to prevent Sun's f77 -depend (implied by -fast) from
 % optimizing rand_axc into incorrectness.
@@ -368,10 +386,10 @@ length |ran_j|, in order to avoid the recursion */
          tmp=rn_array(x)[i-ran_k]-rn_array(x)[i-ran_j]
          if (tmp < zero) tmp=one+tmp
          rn_array(x)[i]=tmp+ran_epsilon
-/*
+@#if 0
          tmp=rn_array(x)[i-ran_k]+rn_array(x)[i-ran_j]
          rn_array(x)[i]=tmp-int(tmp)
-*/
+@#endif
       end do
 
       rn_max(x)=rn_max(x)+ran_k
