@@ -2,6 +2,10 @@
 \Title{plate}
 
 % $Log$
+% Revision 1.8  1999/04/20 20:09:46  dstotler
+% Modify handling of PMI products to look more like the way reactions
+% are done.
+%
 % Revision 1.7  1998/09/04 17:15:09  dstotler
 % Minor changes to satisfy FWEAVE and TeX.
 %
@@ -634,6 +638,9 @@ setting the unit velocity vector of a particle leaving a surface.
       else if (eval_name == 'cosspec') then
          call cosspec(rank,ind_params_label,tab_index,fit_array(0),
      $        ind_params_value,rn_args(x),vc_args(vhat))
+      else if (eval_name == 'cosine_p') then
+         call cosine_p(rank,ind_params_label,tab_index,fit_array(0),
+     $        ind_params_value,rn_args(x),vc_args(vhat))
       else if (eval_name == 'maxwell_flux') then
          call maxwell_flux(rank,ind_params_label,tab_index,fit_array(0),
      $        ind_params_value,rn_args(x),vc_args(vhat))
@@ -901,6 +908,51 @@ to be varied.
       vhat[1]=sin_theta_hat*cos_phi*cos_alpha + cos_theta_hat*sin_alpha
       vhat[2]=sin_theta_hat*sin_phi
       vhat[3]=cos_theta_hat*cos_alpha - sin_theta_hat*cos_phi*sin_alpha
+
+      return
+      end
+
+@ Cosine to a power velocity vector. This could be generated as a special
+case of the cosine-specular distribution. Use separate code here for
+clarity.
+
+@m fit_array(i) data_table[i]
+
+@<Functions...@>=
+      subroutine cosine_p(rank,ind_params_label,tab_index,data_table,
+     $   ind_params_value,rn_dummy(x),vc_dummy(vhat))
+      implicit_none_f77
+      implicit_none_f90
+      
+      integer rank,ind_params_label[pf_table_rank_max],tab_index   // Input
+      real ind_params_value[pf_table_rank_max],data_table[0:*]
+
+      rn_decl(x)                                               // Input/output
+
+      vc_decl(vhat)                                            // Output
+
+      real p,xi,sin_theta,cos_theta,phi,cos_phi,sin_phi        // Local
+
+/* Check inputs */
+
+      assert(rank == 0)            // Fit has no independent variables
+      assert(tab_index == 1)       // And one fit coefficient!
+
+      p=fit_array(0)
+
+      rn_next(xi,x)
+      cos_theta=xi**(one/(one+p))
+      sin_theta=sqrt(one - xi**(two/(one+p)))
+      if (sin_theta < zero) sin_theta=zero
+      if (sin_theta > one) sin_theta=one
+      rn_next(phi,x)
+      phi=PI*(two*phi-one)
+      cos_phi=cos(phi)
+      sin_phi=sin(phi)
+
+      vhat[1]=sin_theta*cos_phi
+      vhat[2]=sin_theta*sin_phi
+      vhat[3]=cos_theta
 
       return
       end
