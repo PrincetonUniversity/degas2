@@ -72,50 +72,13 @@ code. Before compiling readgeometry:
 Be sure to reset that flag to GENERAL prior to running the code with other 
 geometries.
 
-Getting a good match between the code error estimates required changing
-a few estimators from their default values. Here is the output of the
-diff utility:
-
-468,469c468,469
-<  //      estimator[pr_rc_unknown]=tl_est_track
-<          estimator[pr_rc_unknown]=tl_est_collision
----
->        estimator[pr_rc_unknown]=tl_est_track
-> //         estimator[pr_rc_unknown]=tl_est_collision
-473,474c473,474
-<          estimator[pr_rc_ionize_suppress]=tl_est_post_process
-< //         estimator[pr_rc_ionize_suppress]=tl_est_track 
----
-> //         estimator[pr_rc_ionize_suppress]=tl_est_post_process
->          estimator[pr_rc_ionize_suppress]=tl_est_track 
-492,493c492,493
-< //         estimator[pr_rc_dissociation]=tl_est_track
-<          estimator[pr_rc_dissociation]=tl_est_collision
----
->          estimator[pr_rc_dissociation]=tl_est_track
-> //         estimator[pr_rc_dissociation]=tl_est_collision
-
-In each case, the estimator is being changed from "collision" or 
-"post processing" to "track length". 
-
- * The first two set the estimators used for the 'ion source rate' (the
-   same estimator is used for the other transfer terms as well). The
-   tag "pr_rc_unknown" includes the charge exchange reaction;
-   pr_rc_ionize_suppress corresponds to the hionize reaction (even
-   though we are not using suppressed ionization here).
-
- * The last set of changes causes the track length estimator to be
-   used for scoring momentum and energy transfers for molecular
-   dissociation reactions (the track length estimator was already
-   being used by default for the ion source rate).
-
 This example will now also serve as a performance benchmark. However, some
 aspects of this benchmark are not yet standard parts of the code (principally
 because they result in increases in variance) and must be enabled by compiler 
 switches:
 
- * geomint.hweb - PLANE_SURFACES 1 (normal is "0"; with "1", the code drops
-   the quadratic terms in the surface representation).
+ * geomint.hweb - PLANE_SURFACES 1 and SURFACE_EVAL_MACRO 1 (normal is "0"; 
+   with "1", the code drops the quadratic terms in the surface representation).
 
  * collide.web - RR 1 (does Russian roulette when molecular dissociation
    products are both the same test species; with "0", both such products
