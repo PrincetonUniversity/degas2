@@ -1,6 +1,9 @@
 @* Macros for machine dependencies.
 % $Id$
 % $Log$
+% Revision 1.11  1998/06/01 15:56:35  karney
+% MPI enabled version.
+%
 % Revision 1.10  1998/04/16 15:31:12  karney
 % Various changes to clean up code in support of Linux.
 %
@@ -113,6 +116,17 @@
     @m LINUX 1
 @#endif
 
+@#if defined(NAGWARE)
+    @m NAGWARE 1
+    @m PGROUP 0
+@#elif defined(PGROUP)
+    @m NAGWARE 0
+    @m PGROUP 1
+@#else
+    @m NAGWARE 0
+    @m PGROUP 0
+@#endif
+
 @ Fortran 77 vs. 90.
 
 @#if defined(FORTRAN90)
@@ -205,8 +219,8 @@
 @m sy_decls
       external get_env,wall_time,cpu_time,get_pid,arg_count,set_cwd;
       logical get_env,set_cwd;
-      integer wall_time,get_pid,arg_count;
-      real cpu_time;
+      integer get_pid,arg_count;
+      real cpu_time,wall_time@;
 
 @ Interface for memory allocation.
 
