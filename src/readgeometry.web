@@ -2,6 +2,11 @@
 \Title{readgeometry}
 
 % $Log$
+% Revision 1.31  1998/01/14 21:01:33  dstotler
+% Move setting of zn_type and volume initialization from "new_zone"
+% keyword section to "define_polygon" to be consistent with Charles'
+% changes to start_cell default settings.
+%
 % Revision 1.30  1997/09/02 21:14:42  karney
 % New initializer for random numbers.
 % Kludge to get around NERSC/Sun f90 bugs in sysdep.web (see CHARPOINTERBUG).
@@ -1727,9 +1732,9 @@ skip:          continue
 
 
 @ Set up detectors for this geometry. {\em Note: this routine is
-geometry-specific!}
+geometry-specific!} This is now for C-Mod; rays for detector C-top.
 
-@m total_views 10   // To be used as a local dimension
+@m total_views 35   // To be used as a local dimension
 @<Functions...@>=
       subroutine rg_detector_setup
 
@@ -1740,11 +1745,23 @@ geometry-specific!}
 
       integer view,num,var,tab_index,spacing,i
       integer grp_views[total_views]
-      real var_min,var_max,mult
+      real var_min,var_max,mult,r0ha,z0ha,r_end,z_end
+      real theta[total_views]
+
+      data (theta(i),i=1,total_views)
+     .      /-1.59500e+01,-1.50800e+01,-1.41000e+01,-1.32200e+01,
+     .       -1.22200e+01,-1.12700e+01,-1.03200e+01,-9.35501e+00,
+     .       -8.39001e+00,-7.46500e+00,-6.54001e+00,-5.51001e+00,
+     .       -4.48001e+00,-3.48999e+00,-2.50000e+00,-1.66699e+00,
+     .       -8.34015e-01, 2.63000e-01, 1.35999e+00, 2.50500e+00,
+     .        3.64999e+00, 4.53000e+00, 5.41000e+00, 6.33499e+00,
+     .        7.26001e+00, 8.28500e+00, 9.31000e+00, 1.02650e+01,
+     .        1.12200e+01, 1.21700e+01, 1.31200e+01, 1.41000e+01,
+     .        1.50800e+01, 1.59500e+01, 1.69100e+01/
 
       @<Memory allocation interface@>
 
-      detector_total_views=0       // test
+      detector_total_views=total_views+1   // Spectrum chord is different
       var_alloc(de_view_points)
       var_alloc(de_view_algorithm)
       var_alloc(de_view_halfwidth)
@@ -1754,22 +1771,27 @@ geometry-specific!}
       de_view_size=0
       var_alloc(de_view_tab)
 
+      r0ha=const(7.517,-1)         // Vertex, from C-Mod guys
+      z0ha=const(1.087)
       if (detector_total_views > 0) then
-         do view=1,detector_total_views
+         do view=1,total_views
             de_view_algorithm[view]=de_algorithm_uniform
-            de_view_halfwidth[view]=const(3.)*PI/const(1.8,2)  // arbitary
-            vc_set(de_view_points[view][de_view_start],one,zero,half)
+            de_view_halfwidth[view]=half*PI/const(1.8,2)  // roughly distance between chords
+            vc_set(de_view_points[view][de_view_start],r0ha,zero,z0ha)
+            z_end=zero
+            r_end=r0ha+(z0ha-z_end)*tan(theta[view]*PI/const(1.8,2))
+            vc_set(de_view_points[view][de_view_end],r_end,zero,z_end)
          end do
-      
-         vc_set(de_view_points[1][de_view_end],half,zero,zero)
-         vc_set(de_view_points[2][de_view_end],zero,zero,const(0.25))
-         vc_set(de_view_points[3][de_view_end],zero,zero,half)
-         vc_set(de_view_points[4][de_view_end],zero,zero,const(0.75))
-         vc_set(de_view_points[5][de_view_end],half,zero,one)
+
+         view=detector_total_views
+         de_view_algorithm[view]=de_algorithm_uniform
+         de_view_halfwidth[view]=const(3.)*PI/const(1.8,2) // bigger
+         vc_set(de_view_points[view][de_view_start],const(7.5057,-1),zero,const(1.06))
+         vc_set(de_view_points[view][de_view_end],const(5.8228,-1),zero,const(1.1041,-2))
 
          call detector_view_setup
 
-         num=detector_total_views
+         num=total_views
          var=de_var_unknown
          tab_index=zero
          var_min=zero
@@ -1789,7 +1811,7 @@ geometry-specific!}
          var_max=const(6564.)
          mult=const(1.,-10)
          spacing=de_spacing_linear
-         grp_views[1]=3
+         grp_views[1]=detector_total_views
          call de_grp_init('Halpha spectrum',num,var,tab_index,var_min,var_max,
      $        mult,spacing,grp_views)
       end if
