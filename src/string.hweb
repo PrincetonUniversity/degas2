@@ -3,6 +3,9 @@
 % $Id$
 
 % $Log$
+% Revision 1.8  1998/04/16 15:31:12  karney
+% Various changes to clean up code in support of Linux.
+%
 % Revision 1.7  1997/08/19 14:37:07  karney
 % Changes to support compilation under f90.  This involved extensive changes
 % in array.hweb and sysdep.web.  Nearly all other files needed some
@@ -36,8 +39,8 @@ Declarations of the string routines.
 
 @f st_decls integer
 @m st_decls
-      external string_length,read_string,parse_string,next_token,string_lookup,int_lookup,read_real,read_integer;
-      integer string_length,parse_string,string_lookup,int_lookup,read_integer;
+      external string_length,read_string,parse_string,next_token,string_lookup,int_lookup,read_real,read_integer,read_int_soft_fail;
+      integer string_length,parse_string,string_lookup,int_lookup,read_integer,read_int_soft_fail;
       real read_real;
       logical read_string,next_token @;
 
