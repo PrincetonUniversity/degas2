@@ -1,0 +1,1182 @@
+% $Id$
+\Title{outputbrowser}
+
+% $Log$
+
+@* A program to allow interactive browsing and printing of DEGAS 2's
+output netCDF file. 
+
+\ID{$Id$}
+
+When run without an argument, |outputbrowser|
+operates interactively, walking the user through the process of
+choosing a tally and deciding what information is to be displayed.
+A more explanatory ``verbose'' interface provides help along the way.
+The experienced user may find the ``terse'' interface more convenient.
+
+This program can also be run via a script, with the name specified
+on the argument line:
+\begin{verbatim}
+outputbrowser ascriptfile
+\end{verbatim}
+A nice feature of this code is that each interactive session (i.e.,
+one not driven by a script) is logged into a file called 
+|outputscript|. So, one can run the code in the interactive mode
+(with its relatively forgiving approach to error handling) to generate
+a script file. The user need only rename |outputscript| at the end
+of the interactive session (since the next execution of |outputbrowser|
+would overwrite it).
+
+At the completion of a script-driven run, the user is given interactive
+control of the code. Additional tallies viewed at this point are again logged
+in |outputscript|. The user can rename this file or tack the resulting
+commands on to the end of another script file. 
+
+{\bf Note that because some details, such as the number of zones
+or species, can vary from one problem to another, there is no guarantee
+that a given script will work with every run.} A wildcard facility has been
+built in to address this limitation.
+
+We will now look in more detail at how to use |outputbrowser|.
+
+In interactive mode, the code asks:
+\begin{verbatim}
+  Do you want verbose (v) or terse instructions (t)?
+\end{verbatim}
+The only valid responses are \verb+v+, \verb+V+ (for verbose), 
+\verb+t+, and \verb+T+ (for terse). There is no corresponding 
+command for the script files.
+
+At the outermost level, the code is an endless loop. At the beginning of
+each pass through the loop, the user must specify a |tally| (from those
+defined when |tallysetup| was run), or choose ``0'' to exit the loop.
+
+\begin{verbatim}
+ The tallies contained in this file are:
+ 
+   1 - wall & target current out
+   2 - wall & target energy current out
+   3 - wall & target current: energy spectrum
+\end{verbatim}
+\vdots
+\begin{verbatim}
+  18 - Dalpha chord integrals
+  19 - Dalpha spectrum
+  20 - Dalpha spectrum detail
+ 
+ Choose one; use 0 to exit
+\end{verbatim}
+
+The only valid responss are ``0'' (to quit) or an integer
+between ``1'' and ``20'' (or whatever the highest numbered tally is).
+
+The corresponding syntax in the script file is:
+
+\begin{verbatim}
+  Tally   5
+\end{verbatim}
+to choose tally number 5.
+
+Recall that DEGAS 2 keeps separate statistics for each of the
+source groups defined in the input background file. These results
+are combined to form the totals which appear in the text output files
+and elsewhere (e.g., the HDF files produced by |geomtesta|). 
+The next step in running |outputbrowser| is to pick a group, or
+choose to look at the total:
+
+\begin{verbatim}
+    Do you want to look at a specific source group?
+    Enter 0 for 'no', or 1 through   6
+\end{verbatim}
+
+There are 6 source groups in this run. You can select one of them
+to view the results for it alone, or ``0'' to get only the total
+over all groups.
+
+The syntax in the script file is:
+
+\begin{verbatim}
+  Group   0
+\end{verbatim}
+
+Having selected a particular tally, |outputbrowser| can look up its
+rank, that is, the number of independent variables. It will report this
+along with their names and the number of values associated with each:
+
+\begin{verbatim}
+ 'duct currents out' is of rank:   2
+ 
+    Its independent variables are:
+ 
+    rank  # values   name 
+      1         6    problem_sp
+      2         5    diagnostic
+\end{verbatim}
+
+Here, |problem_sp| (i.e., the list of species specified in the problem input
+file) is the first independent variable, and a group of diagnostic sectors
+is the second variable. The former runs from 1 to 6; the latter 1 to 5.
+
+The code will then prompt the user for a range for each of these:
+
+\begin{verbatim}
+    Enter range indices, separated by a space for 'problem_sp'
+    If you want additional details on this variable, append a + sign
+\end{verbatim}
+
+The simplest reply would be a pair of integers, e.g.,
+
+\begin{verbatim}
+   1  6
+\end{verbatim}
+
+indicating the values associated with |problem_sp| 1 through 6.
+The only requirements here are that the second number be greater than
+or equal to the first and that both be between 1 and the number of
+values specified above.
+
+Giving a single number:
+
+\begin{verbatim}
+    5 
+\end{verbatim}
+
+is the same as saying \verb+ 5   5+.
+
+A wildcard \verb+*+ can be used to specify the upper end of the range.
+Used by itself, the code will use the full range of the independent 
+variable. It can also be used with a lower limit:
+
+\begin{verbatim}
+    2   *
+\end{verbatim}
+
+In this case, this would be the same as specifying \verb+2  6+.
+
+Since the numbers associated with each independent variable are really
+defined only for the code's internal use, the user generally does not
+know how to associate them with particular physical entities. For this
+reason, an additional section of |outputbrowser| can be called upon to
+provide more details about a particular set of independent variables,
+say, the problem species. To get this output, the user can just append
+a ``+'' sign to the independent variable list, e.g.,
+
+\begin{verbatim}
+    2   *  +
+\end{verbatim}
+
+The script syntax requires the specification of the rank of each independent
+variable, but is otherwise obvious:
+
+\begin{verbatim}
+  Rank   1 :   1 5 +
+  Rank   2 :   * +
+\end{verbatim}
+
+|outputbrowser| will be printing out data in a tabular format, either
+to the screen or to a file. Because some of the independent variables
+can have thousands of values (e.g., zones), the user will want to
+have some control over how these data are presented. Rank 0 (scalar)
+data are printed directly without any user input. Likewise, there are
+no options for rank 1 data; these are printed down the page, one value
+per line. In both cases, the relative standard deviation is also
+printed.
+
+Rank 2 data can be printed in one of two forms. In the tabular form,
+the dependence on one independent variable is laid out across the
+page, and the other down. No relative standard deviation is printed.
+If there are more than |max_cols| (presently 20) values for the first
+independent variable, the code abandons the tabular form and instead
+writes the data out in linear fashion down the page. In this case,
+the relative standard deviation is included. If there is only one 
+value for the first independent variable, this form is used as well
+(i.e., the tabular form would also consist of a single column anyway, but
+without the relative standard deviation).
+
+Rank 3 data is printed out as a sequence of 2-D slices, with the same
+bit of code handling the printing of the latter. Presently, the code
+is not set up to deal with data of rank 4 or higher. 
+
+The user can tell |outputbrowser| which independent variable to consider
+as the ``first'' (to be printed across the page in the tabular format),
+``second'' (to go down the page), and ``third'' (separate pages). 
+If the user responds to the question:
+
+\begin{verbatim}
+    Would you like to re-order the independent variables for printing? (y/n)
+\end{verbatim}
+
+with ``n'' or ``N'', it will take the independent variable ordering to be
+that listed previously for this tally. If the answer is ``y'' or ``Y'',
+the code asks
+
+\begin{verbatim}
+    Using the integer index for each variable:
+   1 - problem_sp
+   2 - diagnostic
+      The first index will go across the page; second will go down;
+      third and more will be on separate pages
+      Enter the desired ordering:
+\end{verbatim}
+
+Again, the default ordering would be equivalent to responding with
+\verb+1 2+. To change the ordering (say, if there were only a few
+values of |diagnostic|, but many of |problem_sp|), the user would
+type \verb+2 1+. For a rank 3 tally, the user would be asked to
+select a permutation of 1, 2, and 3.
+
+The syntax of the script file here should then be clear:
+
+\begin{verbatim}
+  Order   2  1
+\end{verbatim}
+
+If the tally is a vector quantity (such as the average neutral velocity,
+the user will see:
+
+\begin{verbatim}
+This tally is not a scalar quantity. Enter the dimension to be printed, 1 to 3
+\end{verbatim}
+
+The coordinate system for vector quantities will be that specified by
+the output conversions for the tally, if any, during |tallysetup|.
+For cartesian coordinates, the dimensions 1, 2, and 3 would correspond to
+$x$, $y$, and $z$, respectively.
+
+The corresponding line in the script file is:
+
+\begin{verbatim}
+  Dimension 1
+\end{verbatim}
+
+This line can be omitted for scalar or rank 1 data.
+
+Finally, |outputbrowser| needs to know where to write the data on
+this tally:
+
+\begin{verbatim}
+    Display this on screen or file? (s/f)
+\end{verbatim}
+
+Typing ``s'' or ``S'' will cause the results to be printed to \verb+stdout+.
+If ``f'' or ``F'' is entered, the user is prompted for a file name:
+
+\begin{verbatim}
+    Enter filename to store information
+\end{verbatim}
+
+This filename should not be longer than |FILELEN| characters long
+(currently 96).
+
+To select screen output in the script file, use the line:
+
+\begin{verbatim}
+  Screen
+\end{verbatim}
+
+To instead have the data written to a file (here, \verb+afilename+), use
+
+\begin{verbatim}
+  File afilename
+\end{verbatim}
+
+The description of the output for each tally in the script file
+must be terminated by a line starting with a \verb+-+. The
+script files generated by |outputbrowser| will use
+
+\begin{verbatim}
+ --------------------------------------------------------
+\end{verbatim}
+
+At this point, |outputbrowser| will extract the requested data on this tally
+from the output arrays and write it to the specified destination. If
+additional information on one or more independent variables has been
+requested, that will be printed as well. The beginning of this
+section will be delimited by a line containing the name of the
+independent variable in all caps. 
+
+The code will then ask if another tally is to be investigated:
+
+\begin{verbatim}
+ Look at another tally? (y/n)
+\end{verbatim}
+
+This request is also made when the code has reached the end of an input 
+script file. The user can bypass this question by specifying 
+
+\begin{verbatim}
+Tally 0
+\end{verbatim} 
+as the last tally.
+
+@m FILE 'outputbrowser.web'
+@m max_cols 20   // Number of data columns in output format
+
+@m get_next_token                    // Appears often enough to define
+         assert(length<=len(line));
+         length=parse_string(line(:length));
+         p=0;
+         assert(next_token(line,b,e,p)) @;
+
+@ Statement labels for go to's (primarily used for error control)
+
+@m next_tally #:0
+@m tally_done #:0
+@m set_verbose #:0
+@m pick_tally #:0
+@m pick_group #:0
+@m pick_range #:0
+@m pick_ordering #:0
+@m pick_dim #:0
+@m pick_output #:0
+@m test_tally #:0
+@m next_line #:0
+@m range_loop #:0
+@m range_loop2 #:0
+
+@I macros.hweb
+@I sysdep.hweb
+@I string.hweb
+@I zone.hweb
+@I string.hweb
+@I detector.hweb
+@I problem.hweb
+@I pmi.hweb
+@I sources.hweb
+@I tally.hweb
+@I output.hweb
+
+@ The main program.
+
+@a
+      program output_browser
+      implicit_none_f77
+      implicit_none_f90
+
+      integer nargs
+      character*FILELEN scriptfile
+
+      sy_decls
+
+      nargs=arg_count()
+      if (nargs > 0) then
+         call command_arg(1,scriptfile)
+         if (nargs > 1) write(stdout,*) ' Only one script file per run'
+      else
+         scriptfile=' '
+      end if
+
+      call readfilenames
+      call degas_init
+      call nc_read_output
+
+      call browse(scriptfile)
+
+      stop
+      end
+
+      @<Functions and subroutines@>
+
+@ This routine does the browsing.
+@<Functions...@>=
+      subroutine browse(scriptfile)
+
+      define_dimen(value_ind,value_size)
+      define_varp(value,FLOAT,value_ind)
+      define_varp(rsd,FLOAT,value_ind)
+
+      implicit_none_f77
+      pr_common
+      so_common
+      tl_common
+      ou_common
+      implicit_none_f90
+
+      character*FILELEN scriptfile
+
+      integer jscore,length,p,b,e,i,j,k,i1,i2,i3,dim,group,screen,nunit,
+     $     value_size,ii,init,verbose,first_pass
+      integer min_slice[tl_rank_max],max_slice[tl_rank_max],
+     $     index_parameters[tl_index_max],details[tl_rank_max]
+      character*1 choice
+      character*2 adddet
+      character*LINELEN line
+      character*FILELEN tempfile
+
+      @<Memory allocation interface@>
+      st_decls
+
+      real extract_output_datum
+      external extract_output_datum
+
+      declare_varp(value)
+      declare_varp(rsd)
+
+      value_size=1000
+      var_alloc(value)
+      var_alloc(rsd)
+
+      init=TRUE
+
+      open(unit=diskout,file='outputscript',status='unknown')
+      if (scriptfile != ' ') open(unit=diskin,file=scriptfile,status='old')
+
+next_tally: continue
+
+      if (scriptfile == ' ') then
+@<User Input@>
+
+      else  // Read |scriptfile|
+@<Read Script@>
+      end if
+
+/*
+   File output: offer the option of writing to a netCDF file?
+    - would want to create the zone map ahead of time here.
+*/
+
+/*
+   Write Data
+*/
+
+      write (nunit,*)
+      write (nunit,*) '''',trim(tally_name[jscore]),
+     $     ''':'
+      if (tally_dep_var_dim[jscore] > 1) then
+         write (nunit,*) '  dimension #',dim
+      end if
+      write (nunit,*)
+
+      if (max_slice[i1] > value_size) then
+         var_realloc(value,value_size,max_slice[i1])
+         var_realloc(rsd,value_size,max_slice[i1])
+         value_size=max_slice[i1]
+      end if
+
+/*
+   Rank 0 (scalar) Data
+*/
+      if (tally_rank[jscore] == 0) then
+         i=1
+         @<get datum@>
+         write(nunit,*) value[1],rsd[1]
+
+/*
+   Rank 1 Data
+*/
+      else if (tally_rank[jscore] == 1) then
+         write(nunit,'(a10,7x,a,5x,a)') 
+     $        trim(tally_var_list[tally_indep_var[jscore][1]]),
+     $        ' value',' rel. std. dev.'
+
+         do i=min_slice[1],max_slice[1]
+            index_parameters[tally_indep_var[jscore][1]]=i
+            @<get datum@>
+         end do
+         do i=min_slice[1],max_slice[1]
+            write(nunit,'(4x,i4,6x,1pe13.5,2x,0pf7.4)') i,value[i],rsd[i]
+         end do
+
+/* 
+   Rank 2 Data
+*/
+      else if (tally_rank[jscore] == 2) then
+         first_pass=TRUE
+         @<write 2D slice@>
+/*
+   Rank 3 Data
+*/
+      else if (tally_rank[jscore] == 3) then
+         first_pass=TRUE
+         do k=min_slice[i3],max_slice[i3]
+            index_parameters[tally_indep_var[jscore][i3]]=k
+            write(nunit,*)
+            write(nunit,'(a,a,i4)')  
+     $           trim(tally_var_list[tally_indep_var[jscore][i3]]),' : ',k
+
+            @<write 2D slice@>
+         end do
+/*
+   Higher Ranks: would probably treat as generalizations of rank 3 case
+*/
+      else
+         write (stdout,*) ' Rank not currently supported here'
+      end if
+      do i=1,tally_rank[jscore]
+         if (details[i] == TRUE) then
+            call dump_indep_vars(nunit,jscore,tally_indep_var[jscore][i],
+     $           min_slice[i],max_slice[i])
+         end if
+      end do
+
+tally_done: continue
+
+      if (scriptfile == ' ') then
+         write(stdout,*)
+         write(stdout,*) 'Look at another tally? (y/n)'
+
+         if (! read_string(stdin,line,length)) goto eof
+         get_next_token
+         if ( line(b:e) == 'y' || line(b:e) == 'Y') go to next_tally
+      else   // script driven
+         write (nunit,*) '--------------------------------------------------------'
+         go to next_tally
+      end if
+
+eof:  continue
+
+      return
+      end
+
+@ Get desired output description directly from user.
+
+@<User Input@>=
+set_verbose: continue
+
+      write(stdout,*)
+      if (init == TRUE) then
+         write(stdout,*) ' Do you want verbose (v) or terse instructions (t)?'
+         if (! read_string(stdin,line,length)) then
+            write(stdout,*) ' No, you actually have to type in "v" or "t".'
+            go to set_verbose
+         end if
+         get_next_token
+         if ( line(b:e) == 'v' || line(b:e) == 'V') then
+            verbose=TRUE
+         else if ( line(b:e) == 't' || line(b:e) == 'T') then
+            verbose=FALSE
+         else
+            write(stdout,*) ' Type a "v" or a "t"'
+            go to set_verbose
+         end if
+      end if
+      if (verbose == TRUE || init == TRUE) then
+         write(stdout,*) 'The tallies contained in this file are:'
+         write(stdout,*)
+         do jscore=1,tl_num
+            write (stdout,'(i4,a,a)') jscore,' - ',trim(tally_name[jscore])
+         end do
+         write(stdout,*)
+         write(stdout,*) 'Choose one; use 0 to exit'
+      else
+         write(stdout,*) 'Choose next tally: '
+      end if
+
+pick_tally: continue
+
+      if (! read_string(stdin,line,length)) goto eof
+      get_next_token
+      jscore=read_int_soft_fail(line(b:e))
+      if(jscore == 0) go to eof  // Quitting
+      if(!tl_check(jscore)) then       // Erroneous input
+         write(stdout,*) 'Tally must be between 1 and ',tl_num
+         write(stdout,*) 'Try again, or use 0 to quit:'
+         go to pick_tally
+      end if
+
+      write(stdout,*)
+      if (so_grps > 1) then
+         if (verbose == TRUE || init == TRUE) then
+            write(stdout,*) '   Do you want to look at a specific source group?'
+            write(stdout,*) '   Enter 0 for ''no'', or 1 through ',so_grps
+         else
+            write(stdout,*) '   Pick source group: '
+         end if
+
+pick_group: continue
+
+         if (! read_string(stdin,line,length)) goto eof
+         get_next_token
+         group=read_int_soft_fail(line(b:e))
+         if (! so_check(group) && group != 0) then
+            write(stdout,*) 'Group must be between 1 and ',so_grps
+            write(stdout,*) 'Try again; use 0 to select all:'
+            go to pick_group
+         end if
+      else
+         group=0
+      end if
+
+/*
+   Pick Independent Variable Ranges
+*/
+      write(stdout,*)
+      if (tally_rank[jscore] > 0) then
+         if (verbose == TRUE) then
+            write(stdout,*) '''',trim(tally_name[jscore]),''' is of rank: ',
+     $           tally_rank[jscore]
+            write(stdout,*)
+            write(stdout,*) '   Its independent variables are:'
+            write(stdout,*)
+            write(stdout,*) '   rank  # values   name '
+         else
+            write(stdout,*) '   Independent variables are:'
+         end if
+         do i=1,tally_rank[jscore]
+            write(stdout,'(3x,i4,6x,i4,4x,a)') i,
+     $           tally_tab_index[jscore][i],
+     $           trim(tally_var_list[tally_indep_var[jscore][i]])
+         end do
+
+         write(stdout,*)
+         do i=1,tally_rank[jscore]
+            if (verbose == TRUE) then
+               write(stdout,*) '   Enter range indices, separated by a space for ''',trim(tally_var_list[tally_indep_var[jscore][i]]),''''
+               write(stdout,*) '   If you want additional details on this variable, append a + sign'
+            else
+               write(stdout,*) '   Range for ''',trim(tally_var_list[tally_indep_var[jscore][i]]),''''
+            end if
+
+pick_range: continue
+      
+            if (! read_string(stdin,line,length)) goto eof
+            get_next_token
+
+            min_slice[i]=int_undef
+            max_slice[i]=int_undef
+            details[i]=FALSE
+range_loop: continue
+@<range logic@>
+            if (next_token(line,b,e,p)) go to range_loop
+            if (max_slice[i] == int_undef) max_slice[i]=min_slice[i]
+
+            if (min_slice[i] < 1 || min_slice[i] > tally_tab_index[jscore][i] 
+     $ || max_slice[i] < 1 || max_slice[i] > tally_tab_index[jscore][i] 
+     $ || min_slice[i] > max_slice[i]) then
+               write(stdout,*) ' Range limits must be between 1 and ',
+     $              tally_tab_index[jscore][i]
+               write(stdout,*) ' Try again: '
+               go to pick_range
+            end if
+         end do
+      end if
+
+/*
+   Reorder independent variables
+*/
+      if (tally_rank[jscore] == 0 || tally_rank[jscore] == 1) then
+         i1=1
+      else
+         write(stdout,*)
+         write(stdout,*) '   Would you like to re-order the independent variables for printing? (y/n)'
+
+         if (! read_string(stdin,line,length)) go to eof
+         get_next_token
+         choice=line(b:e)
+         if(choice != 'y' && choice != 'Y') then
+            i1=1
+            i2=2
+            i3=3
+         else
+            if (verbose == TRUE) then
+               write(stdout,*) '   Using the integer index for each variable:'
+               do i=1,tally_rank[jscore]
+                  write(stdout,*) i,' - ',trim(tally_var_list[tally_indep_var[jscore][i]])
+               end do
+               write(stdout,*) '     The first index will go across the page; second will go down;'
+               write(stdout,*) '     third and more will be on separate pages'
+            end if
+
+pick_ordering: continue
+
+            write(stdout,*) '     Enter the desired ordering:'
+            if (! read_string(stdin,line,length)) goto eof
+            get_next_token
+            i1=read_int_soft_fail(line(b:e))
+            if (tally_rank[jscore] >= 2) then
+               assert(next_token(line,b,e,p))
+               i2=read_int_soft_fail(line(b:e))
+            end if
+            if (tally_rank[jscore] >= 3) then
+               assert(next_token(line,b,e,p))
+               i3=read_int_soft_fail(line(b:e))
+            end if
+            if (i1 < 1 || i1 > tally_rank[jscore] 
+     $    || (tally_rank[jscore] >= 2 && (i2 < 1 || i2 > tally_rank[jscore]))
+     $    || (tally_rank[jscore] >= 3 && (i3 < 1 || i3 > tally_rank[jscore])))
+     $           then
+               write(stdout,*) ' These integers must all be between 1 and ',
+     $              tally_rank[jscore],'; Try again'
+               go to pick_ordering
+            end if
+         end if
+      end if
+
+pick_dim: continue
+
+      if (tally_dep_var_dim[jscore] == 1) then
+         dim=1
+      else
+         write (stdout,*) ' This tally is not a scalar quantity. Enter the dimension to be printed, 1 to ',tally_dep_var_dim[jscore]
+         if (! read_string(stdin,line,length)) goto eof
+         get_next_token
+         dim=read_int_soft_fail(line(b:e))
+         if (dim < 1 || dim > tally_dep_var_dim[jscore]) then
+            write(stdout,*) ' Try again; pick a number between 1 and ',
+     $           tally_dep_var_dim[jscore]
+            go to pick_dim
+         end if
+      end if
+
+pick_output: continue
+
+      write(stdout,*)
+      write(stdout,*)'   Display this on screen or file? (s/f)'
+      if (! read_string(stdin,line,length)) goto eof
+      get_next_token
+      choice=line(b:e)
+      if(choice == 'S' || choice == 's') then
+         screen=TRUE
+         nunit=stdout
+      else if (choice == 'F' || choice == 'f') then
+         screen=FALSE
+         write(stdout,*)
+         write(stdout,*)'   Enter filename to store information'
+         write(stdout,*)
+
+         if (! read_string(stdin,line,length)) goto eof
+         get_next_token
+         tempfile = line(b:e)
+         open(unit=diskout+1,file=tempfile,status='unknown')
+
+         nunit=diskout+1
+      else
+         write(stdout,*) 'No, that will not work, try again.'
+         go to pick_output
+      end if
+/*
+   Write out (successful) data to script
+*/
+      init=FALSE
+      write (diskout,*) ' Tally ',jscore
+      write (diskout,*) ' Group ',group
+      if (tally_rank[jscore] > 0) then
+         do i=1,tally_rank[jscore]
+            if (details[i] == TRUE) then
+               adddet=' +'
+            else
+               adddet='  '
+            end if
+            write (diskout,*) ' Rank ',i,' : ',min_slice[i],max_slice[i],adddet
+         end do
+         if (tally_rank[jscore] == 2) then
+            write (diskout,*) ' Order ',i1,i2
+         else if (tally_rank[jscore] == 3) then
+            write (diskout,*) ' Order ',i1,i2,i3
+         end if
+      end if
+      write (diskout,*) ' Dimension ',dim
+      if (screen == TRUE) then
+         write (diskout,*) ' Screen'
+      else
+         write (diskout,*) ' File ',trim(tempfile)
+      end if
+      write (diskout,*) '--------------------------------------------------------'
+
+@ Read output description from script file.
+
+@<Read Script@>=
+next_line: continue
+
+      if (! read_string(diskin,line,length)) then
+         close(unit=diskin)
+         scriptfile = ' '
+         go to tally_done
+      else
+         get_next_token
+         if (line(b:e) == 'Tally') then
+            assert(next_token(line,b,e,p))
+            jscore=read_int_soft_fail(line(b:e))
+         else if (line(b:e) == 'Group') then
+            assert(next_token(line,b,e,p))
+            group=read_int_soft_fail(line(b:e))
+         else if (line(b:e) == 'Rank') then
+            assert(next_token(line,b,e,p))
+            i=read_int_soft_fail(line(b:e))
+            assert(next_token(line,b,e,p))
+            assert(line(b:e) == ':')
+            assert(next_token(line,b,e,p))
+
+            min_slice[i]=int_undef
+            max_slice[i]=int_undef
+            details[i]=FALSE
+range_loop2: continue
+@<range logic@>
+            if (next_token(line,b,e,p)) go to range_loop2
+            if (max_slice[i] == int_undef) max_slice[i]=min_slice[i]
+
+         else if (line(b:e) == 'Dimension') then
+            assert(next_token(line,b,e,p))
+            dim=read_int_soft_fail(line(b:e))
+         else if (line(b:e) == 'Order') then
+            assert(next_token(line,b,e,p))
+            i1=read_int_soft_fail(line(b:e))
+            assert(next_token(line,b,e,p))
+            i2=read_int_soft_fail(line(b:e))
+            if (next_token(line,b,e,p)) then
+               i3=read_int_soft_fail(line(b:e))
+            else
+               i3=3    // Do we need a default for this case?
+            end if
+         else if (line(b:e) == 'Screen') then
+            screen=TRUE
+            nunit=stdout
+         else if (line(b:e) == 'File') then
+            screen=FALSE
+            assert(next_token(line,b,e,p))
+            tempfile = line(b:e)
+            open(unit=diskout+1,file=tempfile,status='unknown')
+            nunit=diskout+1
+         else if (line(1:1) == '-') then
+            go to test_tally
+         else
+            write(stdout,*) ' Ignoring unexpected line:',line
+         end if
+      end if
+
+      go to next_line
+      
+test_tally: continue
+
+      if(jscore == 0) go to eof  // Quitting
+      if(!tl_check(jscore)) then       // Erroneous input
+         write(stdout,*)
+         write(stdout,*) 'Tally ',jscore,' is invalid.'
+         write(stdout,*) 'It must be between 1 and ',tl_num
+         go to next_line
+      end if
+      if (! so_check(group) && group != 0) then
+         write(stdout,*)
+         write(stdout,*) 'Invalid group: ',group,' for tally ',jscore
+         write(stdout,*) 'Must be between 1 and ',so_grps
+         go to next_line
+      end if
+      do i=1,tally_rank[jscore] 
+         if (min_slice[i] < 1 || min_slice[i] > tally_tab_index[jscore][i] 
+     $  || max_slice[i] < 1 || max_slice[i] > tally_tab_index[jscore][i] 
+     $  || min_slice[i] > max_slice[i]) then
+            write(stdout,*)
+            write(stdout,*) 'Invalid range for tally ',jscore,
+     $           ', rank ',i
+            write(stdout,*) ' Range limits must be between 1 and ',
+     $           tally_tab_index[jscore][i]
+            go to next_line
+         end if
+      end do
+      if (tally_rank[jscore] >= 2) then
+         if (i1 < 1 || i1 > tally_rank[jscore] 
+     $    || (tally_rank[jscore] >= 2 && (i2 < 1 || i2 > tally_rank[jscore]))
+     $    || (tally_rank[jscore] >= 3 && (i3 < 1 || i3 > tally_rank[jscore])))
+     $        then
+            write(stdout,*)
+            write(stdout,*) 'Invalid ordering of independent variables: ',
+     $           i1,i2,i3,' for tally ',jscore
+            write(stdout,*) ' These integers must all be between 1 and ',
+     $              tally_rank[jscore]
+            go to next_line
+         end if
+      end if
+      if (dim < 1 || dim > tally_dep_var_dim[jscore]) then
+         if (tally_dep_var_dim[jscore] <= 1) then
+            dim=1
+         else
+            write(stdout,*)
+            write(stdout,*) 'Invalid dimension: ',dim,' for tally ',jscore
+            go to next_line
+         end if
+      end if
+
+@ Just to avoid repeating these lines.
+
+@<get datum@>=
+
+      if (so_check(group)) then
+         value[i]=extract_output_datum(index_parameters,dim,
+     $        out_post_grp[group][0][o_mean],o_mean,tally_name[jscore])
+         rsd[i]=extract_output_datum(index_parameters,dim,
+     $        out_post_grp[group][0][o_mean],o_var,tally_name[jscore])
+      else
+         value[i]=extract_output_datum(index_parameters,dim,
+     $        out_post_all,o_mean,tally_name[jscore])
+         rsd[i]=extract_output_datum(index_parameters,dim,
+     $        out_post_all,o_var,tally_name[jscore])
+      end if
+
+@ This rather involved piece of logic is used for both user and script input.
+
+@<range logic@>=
+      if (line(b:e) == '+') then
+         details[i]=TRUE
+      else if (line(b:e) == '*') then
+         max_slice[i]=tally_tab_index[jscore][i]
+         if (min_slice[i] == int_undef) min_slice[i]=1
+      else
+         if (line(e:e) == '+') then
+            e-=1            // User left out space before + sign
+            details[i]=TRUE
+         end if
+         if (min_slice[i] == int_undef) then
+            min_slice[i]=read_int_soft_fail(line(b:e))
+         else
+            max_slice[i]=read_int_soft_fail(line(b:e))
+         end if
+      end if
+
+@ Write out 2-D slice. Used by rank 2 and 3 data; probably will be used
+by higher ranks when they are included.
+
+@<write 2D slice@>=
+      do j=min_slice[i2],max_slice[i2]
+         index_parameters[tally_indep_var[jscore][i2]]=j
+         do i=min_slice[i1],max_slice[i1]
+            index_parameters[tally_indep_var[jscore][i1]]=i
+            @<get datum@>
+         end do
+         if (max_slice[i1]-min_slice[i1]+1 < max_cols 
+     $        && max_slice[i1] > min_slice[i1]) then
+            if (j == min_slice[i2]) then
+               write(nunit,'(12x,a,a3)') 
+     $              trim(tally_var_list[tally_indep_var[jscore][i1]]),' ->'
+               write(nunit,'(6x,20(6x,i4,5x))') SP (ii, ii=min_slice[i1],max_slice[i1])
+               write(nunit,'(a)') 
+     $              trim(tally_var_list[tally_indep_var[jscore][i2]])
+            end if
+            write(nunit,'(i4,2x,1p,20(2x,e13.5))') j,(value[ii], ii=min_slice[i1],max_slice[i1])
+         else
+            if (first_pass == TRUE) then
+               write(nunit,'(a10,2x,a10,5x,a,t39,a)') 
+     $              trim(tally_var_list[tally_indep_var[jscore][i1]]),
+     $              trim(tally_var_list[tally_indep_var[jscore][i2]]),
+     $              ' value',' rel. std. dev.'
+               first_pass=FALSE
+            end if
+            do i=min_slice[i1],max_slice[i1]
+               write(nunit,'(4x,i4,6x,i4,6x,1pe13.5,2x,0pf7.4)') i,j,value[i],rsd[i]
+            end do
+         end if
+      end do
+
+@ A separate routine to print data related to the independent variables.
+
+@<Functions...@>=
+      subroutine dump_indep_vars(nunit,jscore,ivar,imin,imax)
+      
+      implicit_none_f77
+      zn_common                                     // Common
+      sc_common
+      de_common
+      sp_common
+      rc_common
+      pm_common
+      pr_common
+      so_common
+      tl_common
+      implicit_none_f90
+      st_decls
+      
+      integer nunit,jscore,ivar,imin,imax           // Input
+
+      integer pointer,i,sec                         // Local
+      real energy,angle,wavelength
+
+      character*LINELEN type_string
+      character*20 psp_label
+
+/*
+   Go through the list in tally.hweb
+*/
+      write(nunit,*)
+      if (ivar == tl_index_unknown) then
+         assert(' Unknown variable, something is wrong!' == ' ')
+      else if (ivar == tl_index_zone) then
+         write(nunit,*) '  ZONES:'
+         write(nunit,*)
+         write(nunit,'(a,3x,a,9x,a,13x,a,11x,a)') ' zone','center: x1','x2',
+     $        'x3','volume'
+         do i=imin,imax
+            assert(zn_check(i))
+            write(nunit,'(i4,2x,1p,4(e13.5,2x))') i,zone_center[i][1],
+     $           zone_center[i][2],zone_center[i][3],zn_volume(i)
+         end do
+      else if (ivar == tl_index_plasma_zone) then
+         write(nunit,*) ' Nothing written for plasma zone'
+      else if (ivar == tl_index_test) then
+         write(nunit,*) ' TEST SPECIES:'
+         write(nunit,*)
+         write(nunit,'(a,4x,a,3x,a)') 'test','species no.','symbol'
+         do i=imin,imax
+            assert(pr_test_check(i))
+            write(nunit,'(i4,6x,i4,10x,a)') i,pr_test(i),sp_sy(pr_test(i))
+         end do
+      else if (ivar == tl_index_problem_sp) then
+         write(nunit,*) ' PROBLEM SPECIES:'
+         write(nunit,*)
+         write(nunit,'(a,4x,a,5x,a,2x,a,2x,a)') 'problem_sp','class','number','species no.','symbol'
+         do i=imin,imax
+            if (i == 1) then
+               psp_label='background'
+            else if (i == pr_background_num+1) then
+               write (nunit,*) '--------------------------------------------------------'
+               psp_label='test'
+            else
+               psp_label=' '
+            end if
+            if (i <= pr_background_num) then
+               assert(pr_background_check(i))
+               write(nunit,'(1x,i4,7x,a,t25,i4,6x,i4,10x,a)') i,trim(psp_label),i,
+     $              pr_background(i),sp_sy(pr_background(i))
+            else
+               assert(pr_test_check(i-pr_background_num))
+               write(nunit,'(1x,i4,7x,a,t25,i4,6x,i4,10x,a)') i,trim(psp_label),i-pr_background_num,
+     $              pr_test(i-pr_background_num),
+     $              sp_sy(pr_test(i-pr_background_num))
+            end if
+         end do
+      else if (ivar == tl_index_detector) then
+         pointer=tally_geometry_ptr[jscore]
+         write(nunit,*) ' DETECTOR ''',trim(detector_name[pointer]),''':'
+         write(nunit,*)
+         write(nunit,'(a,2x,a,4x,a,9x,a,13x,a,11x,a,10x,a,13x,a)') 'detector','view no.','start: x1','x2','x3',
+     $        'end: x1','x2','x3'
+         do i=imin,imax
+            write(nunit,'(1x,i4,5x,i4,5x,1p,6(e13.5,2x))') i,
+     $           de_view_pointer(i,pointer),
+     $           de_view_points[de_view_pointer(i,pointer)][de_view_start][1],
+     $           de_view_points[de_view_pointer(i,pointer)][de_view_start][2],
+     $           de_view_points[de_view_pointer(i,pointer)][de_view_start][3],
+     $           de_view_points[de_view_pointer(i,pointer)][de_view_end][1],
+     $           de_view_points[de_view_pointer(i,pointer)][de_view_end][2],
+     $           de_view_points[de_view_pointer(i,pointer)][de_view_end][3]
+         end do
+      else if (ivar == tl_index_test_author) then
+         write(nunit,*) ' TEST AUTHOR:'
+         write(nunit,*)
+         write(nunit,'(a,3x,a,3x,a,5x,a)') 'author','class','number','name'
+         do i=imin,imax
+            if (i == 1) then
+               psp_label='source'
+            else if (i == so_type_num+1) then
+               psp_label='pr. reac.'
+               write (nunit,*) '--------------------------------------------------------'
+            else if (i == so_type_num+pr_reaction_num+1) then
+               psp_label='pr. PMI'
+               write (nunit,*) '--------------------------------------------------------'
+            else
+               psp_label=' '
+            end if
+            if (i <= so_type_num) then
+               if (i == so_plate) then
+                  type_string='plate'
+               else if (i == so_puff) then
+                  type_string='puff' 
+               else if (i == so_recomb) then
+                  type_string='recomb'
+               else
+                  assert(' Source type not known' == ' ')
+               end if
+               write(nunit,'(i4,4x,a,t17,i4,4x,a)') i,trim(psp_label),i,trim(type_string)
+            else if (i <= so_type_num+pr_reaction_num) then
+               write(nunit,'(i4,4x,a,t17,i4,4x,a)') i,trim(psp_label),i-so_type_num,
+     $              trim(rc_name(pr_reaction(i-so_type_num)))
+
+            else 
+               write(nunit,'(i4,4x,a,t17,i4,4x,a)') i,trim(psp_label),
+     $              i-so_type_num-pr_reaction_num,
+     $              trim(pm_name(pr_pm_ref(i-so_type_num-pr_reaction_num)))
+            end if
+         end do
+      else if (ivar == tl_index_reaction) then
+         write(nunit,*) ' REACTIONS:'
+         write(nunit,*)
+         write(nunit,'(a,2x,a,5x,a)') 'pr. reac.','reaction','name'
+         do i=imin,imax
+            write(nunit,'(1x,i4,7x,i4,4x,a)') i,pr_reaction(i),
+     $           trim(rc_name(pr_reaction(i)))
+         end do
+      else if (ivar == tl_index_pmi) then
+         write(nunit,*) ' PMI:'
+         write(nunit,*)
+         write(nunit,'(a,2x,a,7x,a)') 'pr. PMI','PMI','name'
+         do i=imin,imax
+            write(nunit,'(i4,4x,i4,3x,a)') i,pr_pm_ref(i),
+     $           trim(pm_name(pr_pm_ref(i)))
+         end do
+      else if (ivar == tl_index_material) then
+         write(nunit,*) ' Nothing written yet for material'
+      else if (ivar == tl_index_source_group) then
+         write(nunit,*) ' Nothing written yet for source group'
+/*
+   Sector, strata, and strata segment are all more likely to appear
+   within diagnostic.
+*/
+      else if (ivar == tl_index_sector) then
+         write(nunit,*) ' Nothing written yet for sector'
+      else if (ivar == tl_index_strata) then
+         write(nunit,*) ' Nothing written yet for strata'
+      else if (ivar == tl_index_strata_segment) then
+         write(nunit,*) ' Nothing written yet for strata segment'
+      else if (ivar == tl_index_energy_bin) then
+         pointer=tally_geometry_ptr[jscore]
+         write(nunit,*) ' ENERGY BINS for diagnostic ''',
+     $        trim(diagnostic_grp_name[pointer]),''':'
+         write(nunit,*)
+         write(nunit,'(1x,a,4x,a)') 'bin','energy (eV)'
+         do i=imin,imax
+            energy=diagnostic_min[pointer]
+     $           +(areal(i)-half)*diagnostic_delta[pointer]
+            if (diagnostic_spacing[pointer] == sc_diag_spacing_log)
+     $           energy=exp(energy)
+            energy/=electron_charge   // J to eV
+            write(nunit,'(i4,2x,1pe13.5)') i,energy
+         end do
+      else if (ivar == tl_index_angle_bin) then
+         pointer=tally_geometry_ptr[jscore]
+         write(nunit,*) ' ANGLE BINS for diagnostic ''',
+     $        trim(diagnostic_grp_name[pointer]),''':'
+         write(nunit,*)
+         write(nunit,'(1x,a,3x,a)') 'bin','angle (degrees)'
+         do i=imin,imax
+            angle=diagnostic_min[pointer]
+     $           +(areal(i)-half)*diagnostic_delta[pointer]
+            if (diagnostic_spacing[pointer] == sc_diag_spacing_log)
+     $           angle=exp(angle)
+            angle*=const(1.8,2)/PI      // radians to degrees
+            write(nunit,'(i4,3x,1pe13.5)') i,angle
+         end do
+      else if (ivar == tl_index_wavelength_bin) then
+         pointer=tally_geometry_ptr[jscore]
+         write(nunit,*) ' WAVELENGTH BINS for diagnostic ''',
+     $        trim(diagnostic_grp_name[pointer]),''':'
+         write(nunit,*)
+         write(nunit,'(1x,a,3x,a)') 'bin','wavelength (Angstroms)'
+         do i=imin,imax
+            wavelength=detector_min[pointer]
+     $           +(areal(i)-0.5)*detector_delta[pointer]
+            if (detector_spacing[pointer] == de_spacing_log) 
+     $           wavelength=exp(wavelength)
+            wavelength*=const(1.,10)
+            write(nunit,'(i4,5x,1pe15.7)') i,wavelength
+         end do
+      else if (ivar == tl_index_diagnostic) then
+         pointer=tally_geometry_ptr[jscore]
+         write(nunit,*) ' SECTORS for diagnostic ''',
+     $        trim(diagnostic_grp_name[pointer]),''':'
+         write(nunit,*)
+         write(nunit,'(t30,a)') 'stratum'
+         write(nunit,'(a,2x,a,2x,a,2x,a,2x,a,9x,a,13x,a)') 'diagnostic',
+     $        'sector','stratum','segment','midpt: x1','x2','x3'
+         do i=imin,imax
+            sec=diagnostic_sector(i,pointer)
+            write(nunit,'(2x,i4,6x,i4,4x,i4,6x,i4,1x,3(1pe13.5,2x))') i,sec,strata[sec],sector_strata_segment[sec],
+     $      half*(sector_points[sec][sc_neg][1]+sector_points[sec][sc_pos][1]),
+     $      half*(sector_points[sec][sc_neg][2]+sector_points[sec][sc_pos][2]),
+     $      half*(sector_points[sec][sc_neg][3]+sector_points[sec][sc_pos][3])
+         end do
+      else
+         write(nunit,*) ' Unknown independent variable'
+      end if
+
+      return 
+      end
+
+@* INDEX.

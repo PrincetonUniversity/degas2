@@ -1,0 +1,78 @@
+# This file is divided into three sections: DEPENDENT VARIABLES, INDEPENDENT
+# VARIABLES, and REACTIONS. They must appear in this order. The variables
+# described in the first two sections are taken to apply to each of the
+# reactions in the last section. For each reaction, the main ratecalc 
+# subroutine is run and a netCDF file is written.
+
+DEPENDENT VARIABLES
+
+# List on separate lines each of the dependent variables to be inserted into
+# the file. After each variable, indicate the data organization method:
+# table_calc, table_eval, table_external, or fit.
+# presently only 'table' and 'fit' are supported. For tabular organizations,
+# also specify the method for interpolating the dependent variable; 
+# the options for this now are either 'linear' and 'log'.
+
+#  Dependent variables            Organization            Spacing
+
+cross_section                     table_eval              log
+reaction_rate                     table_calc              log
+I_0_1*up			  table_calc		  log
+I_0_2*up^2			  table_calc	          log
+sigv_max			  table_external	  linear
+
+INDEPENDENT VARIABLES 
+
+# List the independent variables corresponding to each dependent variable.
+# The first line of each entry indicates to which dependent variable
+# the entry refers; more than one can be specified, delimited by blanks.
+# If the dependent variable is to be stored as a fit, no other information
+# needs to be provided. However, if the limits of validity for the fit
+# should be explicitly specified, they can be included here as the minimum
+# and maximum. For tabular data, the minimum and maximum indicate the range
+# of the table. The number of values and spacing ('log' or 'linear') 
+# complete the determination of the independent variable. If the dependent
+# variable is to be a constant (rank 0), list an independent variable
+# of 'none'; no other information is needed.
+
+#  Independent            Min.        Max.        No. of      Spacing
+#  Variable                                       Values
+
+1
+specific_energy        2.503254e-02   9.965634e+00     27      log
+2 3 4 
+specific_temperature   2.503254e-02   9.965634e+00     27      log
+2 3 4
+specific_energy        2.503254e-02   9.965634e+00     27      log
+
+REACTIONS    
+
+# These specifications are for data retrieval from ALADDIN.
+# Each reaction consists of several lines; reactions are separated by 
+# a line beginning with a '-'.
+# (1) abbreviated reaction name; this will be used to name the output 
+#     and must match the name of the corresponding entry in the 
+#     reactions.nc file.
+# (2) mass relating energy and velocity in the computation 
+#     of the cross section; a label for the units follows a blank space
+# (3) file containing the required ALADDIN data
+# (4) data version, providing version number and description
+# (5) blank delimited list of hierarchical search labels
+# (6) section providing the 'Boolean-and' and 'Boolean-not' search labels:
+#     - There may be a different set for each dependent variable,
+#     - For each set of 'and' and 'not' labels, two lines are 
+#       needed:
+#       (i) in a blank-delimited list, specify to which dependent
+#           variables line (ii) applies.
+#      (ii) using blanks as delimiters, first list the 'and' labels; if
+#           'not' labels are present, put that list afterward,
+#           separating the two lists by a '&!' delimiter.
+
+archex
+      6.6335250e-23 g
+      ../Aladdin/data/argon.dat
+      V. 1.0, Ar charge exchange using Nichols and Manos fit
+      CX Ar [+1] Ar [+0] (G) Ar [+0] (G) Ar [+1]
+      1 2 3 4
+      XS &!
+---------------------------------------------------------------
