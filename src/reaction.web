@@ -2,6 +2,9 @@
 \Title{reaction}
 
 % $Log$
+% Revision 1.32  1999/03/25 20:53:26  dstotler
+% Remove routines split off into interpolate.web.
+%
 % Revision 1.31  1998/05/08 14:07:56  dstotler
 % Use reaction_handling_var0 as INT; add labels for corresponding
 % dependent variables to var0_list. Added a short routine used to
@@ -178,12 +181,17 @@ the more specific information required by the lower level routine.
       
       call set_indep_params(pt_args(p),pr_background_args(back),
      $     reaction_rate_num_rand[pr_reac],rn_args(x),independent_parameters)
+ 
+c      if (independent_parameters[xs_var_energy] == zero) then
+c         find_rate=zero
 
-      find_rate=eval_data(rd_data_args(reaction_rate,[pr_reac]),
+      if (independent_parameters[xs_var_density] != zero) then
+         find_rate=eval_data(rd_data_args(reaction_rate,[pr_reac]),
      $     independent_parameters,rn_args(x))
-
-
-      find_rate*=independent_parameters[xs_var_density]
+         find_rate*=independent_parameters[xs_var_density]
+      else
+         find_rate=zero
+      endif
 
       return
       end
@@ -236,6 +244,7 @@ are passed back in the |independent_parameters| array.
       independent_parameters[xs_var_v_flow_3]=vb_flow[3]
       independent_parameters[xs_var_m_test]=sp_m(pt_sp(p))
       independent_parameters[xs_var_m_back]=sp_m(pr_background(back))
+
       if (num_random > 0) then
          assert(num_random <= xs_max_random)
          do i=1,num_random
@@ -292,6 +301,7 @@ Note that the {\em calling} argument list is defined via a macro.
                else
                   assert('Unsupported spacing' == ' ')
                end if
+
             end do
          end if
          
