@@ -9,7 +9,8 @@ Don't use int_alloc, real_alloc, etc.  Include
 
     @<Memory allocation interface@>
 
-in declaration section of calling routine
+in declaration section of calling routine (this is currently the only
+user of the new "interface" feature of Fortran 90 in DEGAS 2)
 
 Instead of
 	subroutine foo
