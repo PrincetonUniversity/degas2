@@ -2,6 +2,10 @@
 \Title{flighttest}
 
 % $Log$
+% Revision 1.34  1999/07/22 17:54:26  dstotler
+% Add nfrag to "sending more to slave" message. Added var_reallocb for
+% chkpt arrays to satisfy memory checks in F90's var_free.
+%
 % Revision 1.33  1999/05/25 13:39:08  dstotler
 % Numerous changes to permit checkpointing, restarts, and to
 % improve MPI performance. weight_grp is replaced by
@@ -66,8 +70,7 @@
 % New initializer for random numbers.
 % Kludge to get around NERSC/Sun f90 bugs in sysdep.web (see CHARPOINTERBUG).
 % Minor bug in collide.web (array index was a real).
-% Eliminate some uses of repeated actual args (transform, transform_velocity,
-% stat_add, next_seed, rand_axc).
+% Eliminate some uses of repeated actual args (transform, transform_velocity,% stat_add, next_seed, rand_axc).
 %
 % Revision 1.20  1997/08/19 14:36:38  karney
 % Changes to support compilation under f90.  This involved extensive changes
@@ -76,7 +79,7 @@
 %
 % Revision 1.19  1997/08/07 19:46:20  dstotler
 % Add in normalization of group stats. Explicitly calculate and
-% normalize separate scores and variances for each source group. Switch from
+% normalize separate scres and variances for each source group. Switch from
 % "stat" arrays to those in output.hweb. Insert (temporarily?)
 % post-process scoring and other output.
 %
@@ -153,6 +156,7 @@
 @I macros.hweb
 @I sysdep.hweb
 @I string.hweb
+@I background.hweb
 @I sources.hweb
 @I tally.hweb
 @I output.hweb
@@ -208,8 +212,9 @@ smaller chunks (of size |nfrag|) to be handled by the slave processors
       define_varp(estimator_factors,FLOAT,tally_ind)
 
       implicit_none_f77
-      zn_common                                            // Common  
-      sp_common
+
+      zn_common                                             // Common
+      bk_common
       so_common
       pr_common
       de_common
@@ -217,6 +222,9 @@ smaller chunks (of size |nfrag|) to be handled by the slave processors
       ou_common
       sa_common
       mp_common
+      rc_common
+      sp_common
+
       implicit_none_f90
 
       integer i,j,is,zone,test,new_dim,pr_reac,jscore,      // Local
@@ -225,7 +233,9 @@ smaller chunks (of size |nfrag|) to be handled by the slave processors
      $        nflights,nfrag,nparcel,num,nstart,nslaves,slave,
      $        send_data,post_arrays_allocd,isp
       integer index_parameters[tl_index_max]
-      real mult,tot_scale_curr,prob,density,dummy,
+
+      integer back,si
+      real mult,tot_scale_curr,prob,density,temperature,
      $     dens_rsd,pressure,pres_rsd,signal,wavelength
       real sig_det[20]
       logical init,need_scores,have_pressure
@@ -238,29 +248,73 @@ smaller chunks (of size |nfrag|) to be handled by the slave processors
       st_decls
       mp_decls
 
-      real find_rate,extract_output_datum                   // External
-      external find_rate,extract_output_datum
+      real extract_output_datum                   // External Functions
+      external extract_output_datum
 
+/*    Varaibles for BGK convergence   */
+
+      real cv_dens,cv_pres
+      real delta_n,delta_P
+      real total_n,total_P
+      real tot_dn,tot_dP
+
+      integer iter_max
+      vc_decl(vel_test)
+      
       declare_varp(chkpt_grp)
       declare_varp(chkpt_write)
       declare_varp(chkpt_nflights)
       declare_varp(estimator_factors)
 
+      logical BGK,need_iteration
+      integer iter_count
+
+      BGK = .false.
+
+      do i = 1 , pr_reaction_num
+         if ( rc_reaction_type(pr_reaction(i)) == 'bgk_elastic' ) BGK = .true.
+      end do
+
+      if ( BGK ) then
+
+         open(unit=diskout+1,file='iter_count.txt',status='unknown')  //  Displays iteration count
+         open(unit=diskout+2,file='cvg_global.txt',status='unknown')  //  Displays global converence
+         iter_count=-1
+         iter_max = 3			//  Set maximum number of iterations
+         cv_dens = 0.05			//  Set convergence criteria for density
+         cv_pres = 0.05			//  Set convergence criteria for pressure
+
+      endif
+
       var_alloc(estimator_factors)
 
       assert(ou_back_max >= pr_background_num) // Dimension for a local array
+      var_alloc(output_random_seed)
+
+loop1:continue
+
+      if ( BGK ) then                           // Adding outer BGK loop
+         need_iteration=.false.
+         iter_count++
+         write(diskout+1,*) '  Currently running iteration number: ',iter_count
+      endif
 
       if (so_restart == FALSE) then
+         var_alloc(output_all)
          var_alloc(output_grp)
          var_alloc(output_weight_grp)
          var_alloc(output_num_flights)
-         var_alloc(output_random_seed)
          post_arrays_allocd=FALSE      // Allocate |out_post_grp|, etc. later
 
 @#if 0
          call string_to_seed('12',seed) // Initialize random number seed
 @#endif
-         call string_to_seed(so_seed_string,rn_seed_args(output_random_seed[1]))
+         if(iter_count <= 0) then
+            call string_to_seed(so_seed_string,rn_seed_args(output_random_seed[1]))
+         else
+            call next_seed(1,rn_seed_args(output_random_seed[1]))
+         endif
+         
          if (so_spaced_seeds == TRUE && so_grps > 1) then
             do is=2,so_grps
                rn_seed_copy(output_random_seed[is-1],output_random_seed[is])
@@ -274,13 +328,14 @@ smaller chunks (of size |nfrag|) to be handled by the slave processors
             do i=0,tally_size-1
                output_grp[is][i][o_mean]=zero
                output_grp[is][i][o_var]=zero
-            end do
+             end do
          end do
 
 /*
    Need to determine these parameters here since they are used in defining
    a local array in |fill_coupling_arrays|.
 */
+
          init=.true.
          do zone=1,zn_num
             if (zone_type[zone] == zn_plasma) then
@@ -315,6 +370,7 @@ smaller chunks (of size |nfrag|) to be handled by the slave processors
       else
          assert('Illegal value of so_sampling' == ' ')
       end if
+
 @#if MPI
       mpi_broadcast(so_direct_delta) 
 @#endif
@@ -369,6 +425,7 @@ smaller chunks (of size |nfrag|) to be handled by the slave processors
       var_reallocb(chkpt_nflights)
 
       is=0
+
       do icp=1,num_chkpts
          nflights=chkpt_nflights[icp]
 
@@ -389,6 +446,9 @@ smaller chunks (of size |nfrag|) to be handled by the slave processors
          nslaves=mpi_size-1
 @#else
          nslaves=0
+c         nfrag=nflights-1  // My temporary patch (until fix wts. in |stat_acc|
+c         nparcel=1       // Ditto.
+         
 @#endif
 
 @#if MPI
@@ -405,7 +465,7 @@ smaller chunks (of size |nfrag|) to be handled by the slave processors
          do j=min(nparcel,nslaves),nparcel-1 // Loop reading results and making additional requests
             nstart=j*nfrag
             num=min(nfrag,nflights-nstart)
-            
+
                                              // Calculate the flights
 @#if MPI
             if (nslaves>0) then
@@ -421,6 +481,7 @@ smaller chunks (of size |nfrag|) to be handled by the slave processors
             end if
             
 @#else
+
             call do_flights(output_num_flights[is]+nstart,num,so_args(is),seed,estimator_factors) 
 /*
    Moved this inside the !MPI block since slaves send back data only at the
@@ -431,6 +492,7 @@ smaller chunks (of size |nfrag|) to be handled by the slave processors
             
 
             call next_seed(num,seed) // Advance the seed
+
          end do
          
 @#if MPI
@@ -466,6 +528,7 @@ smaller chunks (of size |nfrag|) to be handled by the slave processors
             do isp=1,so_grps
                rn_seed_copy(seed,output_random_seed[isp])
             end do
+
          end if
 
          if (post_arrays_allocd == FALSE 
@@ -530,7 +593,10 @@ smaller chunks (of size |nfrag|) to be handled by the slave processors
 /*
    Post-process scores
 */
-      stat_comp_flt=FALSE               // To get diagonal pointers
+      var_alloc(out_post_all)
+
+      stat_comp_flt=FALSE.               // To get diagonal pointers
+
       if (stat_dim_flt < tally_size) then
          var_realloc(stat_flt,stat_dim_flt-1,tally_size-1)
          stat_dim_flt=tally_size
@@ -560,16 +626,20 @@ smaller chunks (of size |nfrag|) to be handled by the slave processors
 
          do i=0,tally_size-1
             stat_flt[i][o_mean]=out_post_grp[is][i][o_mean]
+            stat_flt[i][o_var]=out_post_grp[is][i][o_var]
          end do
          assert(stat_size_flt==tally_size)
          call final_conversions(tl_cv_post,stat_flt)
             
          if (need_scores) then
+// temporary kludge to allow call to back_scores, but not test_scores
+// (have turned off flux vector tallies)
             call post_process_test_scores(is,stat_flt,estimator_factors)
             if (so_type(is) == so_recomb) then      
                call post_process_back_scores(is,stat_flt,estimator_factors)
             end if
-         end if
+        end if
+
 
          call final_conversions(tl_cv_output,stat_flt)
 
@@ -600,38 +670,151 @@ smaller chunks (of size |nfrag|) to be handled by the slave processors
    Example text output file
 */
 
-      open(unit=diskout,file='density.out',status='unknown')
-      dummy=zero
       if (string_lookup('neutral pressure',tally_name,tl_num) > 0) then
          have_pressure=.true.
       else
          have_pressure=.false.   // Not kept with minimal set of scores
       end if
+
+/*   Beginning of iteration and output machinery   */
+
       do test=2,pr_test_num    // Exclude ``0'' test species
+  
+         index_parameters[tl_index_test]=test
+
+         if ( BGK ) then					//  Zero convergence tests for BGK
+            if ( iter_count <= 1 ) need_iteration = .true.      //  Need at least two runs for tests
+            total_n = 0.
+            tot_dn = 0.
+            delta_n = 0.
+            total_P = 0.
+            tot_dP = 0.
+            delta_P = 0.
+         endif
+
          do zone=1,zn_num
+
             if (zone_type[zone] == zn_plasma) then
-                  index_parameters[tl_index_test]=test
-                  index_parameters[tl_index_zone]=zone
-                  density=extract_output_datum(index_parameters,1,
-     $                 out_post_all,o_mean,'neutral density')
-                  dens_rsd=extract_output_datum(index_parameters,1,
-     $                 output_all,o_var,'neutral density')
-                  if (have_pressure) then
-                     pressure=extract_output_datum(index_parameters,1,
-     $                    out_post_all,o_mean,'neutral pressure')
-                     pres_rsd=extract_output_datum(index_parameters,1,
-     $                    output_all,o_var,'neutral pressure')
+
+               temperature=0.
+               index_parameters[tl_index_zone]=zone
+ 
+               density=extract_output_datum(index_parameters,1,
+     $              out_post_all,o_mean,'neutral density')
+               dens_rsd=extract_output_datum(index_parameters,1,
+     $              output_all,o_var,'neutral density')
+
+               pressure=extract_output_datum(index_parameters,1,
+     $              out_post_all,o_mean,'neutral pressure')
+               pres_rsd=extract_output_datum(index_parameters,1,
+     $              output_all,o_var,'neutral pressure')
+
+               if(density .ne. zero) then
+                 temperature=pressure/density
+               endif
+
+/*   Calls to rewrite BGK background   */
+
+               if ( BGK ) then
+
+                  if ( iter_count > zero ) then
+
+                     do back = 1 , pr_background_num    //   Loop over BACK for a single TEST
+
+                        if ( pr_test(test) == pr_background(back) ) then   //  is TEST also BACK
+
+                           if(background_n[back,zone] != zero) then
+                              total_n += density
+                              delta_n = dabs(background_n[back,zone]-density)
+                              tot_dn += delta_n
+                           endif
+ 
+                           if(background_pres[back,zone] != zero) then
+                              total_P += pressure
+                              delta_P = dabs(background_pres[back,zone]-pressure)
+                              tot_dP += delta_P
+                           endif 
+
+/*   Reset Background Conditions to new iterated values   */
+
+                           background_n[back,zone]=density
+                           background_pres[back,zone]=pressure
+                           background_temp[back,zone]=temperature
+                           vc_set(background_v[back,zone],vel_test[1],vel_test[2],
+     $                        vel_test[3])
+
+                        endif      //  Are TEST and BACKGROUND equivalent?
+
+                     end do        //  Over Background
+
                   else
-                     pressure=zero
-                     pres_rsd=zero
-                  end if
-                  write(diskout,'(2i6,1p6e13.4)') zone_index[zone][1],
-     $              zone_index[zone][2],density,dens_rsd,pressure,pres_rsd,
-     $              dummy,dummy
+
+                     do back = 1 , pr_background_num    //   Loop over Back for a single Test
+
+                        if ( pr_test(test) == pr_background(back) ) then   //  is Test also Back
+
+                           background_n[back,zone]=density
+                           background_pres[back,zone]=pressure 
+                           background_temp[back,zone]=temperature
+                           vc_set(background_v[back,zone],vel_test[1],vel_test[2],
+     $                        vel_test[3])
+
+                        endif      //  Are TEST and BACKGROUND equivalent?
+
+                     end do        //  Over Background
+
+                  endif      // Enough Iterations to provide background ?
+
+               endif         // BGK Iteration Required ?
+
+            endif         // If Plasma Zone
+
+         end do           // Over Zones
+
+         if ( iter_count > zero ) then
+
+            if ( sp_z(pr_test(test)) == zero ) then
+
+               write(diskout+2,1) iter_count,test,tot_dn/total_n,tot_dP/total_P
+               if ( tot_dn/total_n .gt. cv_dens ) need_iteration=.true.
+               if ( tot_dP/total_P .gt. cv_pres ) need_iteration=.true.
+
+            endif
+
+         endif
+
+      end do              // Over Test Species
+
+      if ( BGK )   then
+
+         if ( iter_count >= iter_max ) then
+
+            need_iteration=.false.
+            write(diskout+1,*) ' The run did not converge! '
+
+         endif
+
+         if ( need_iteration ) goto loop1      
+
+      endif 
+
+      init=.true.
+      do zone=1,zn_num
+         if (zone_type[zone] == zn_plasma) then
+            if (init) then
+               output_index_1_min=zone_index[zone][1]
+               output_index_1_max=zone_index[zone][1]
+               output_index_2_min=zone_index[zone][2]
+               output_index_2_max=zone_index[zone][2]
+               init=.false.
+            else
+               output_index_1_min=min(output_index_1_min,zone_index[zone][1])
+               output_index_1_max=max(output_index_1_max,zone_index[zone][1])
+               output_index_2_min=min(output_index_2_min,zone_index[zone][2])
+               output_index_2_max=max(output_index_2_max,zone_index[zone][2])
             end if
-         end do
+         end if
       end do
-      close(unit=diskout)
 
       do test=2,pr_test_num     // Exclude ``0'' test species
 
@@ -680,7 +863,9 @@ smaller chunks (of size |nfrag|) to be handled by the slave processors
                end do
                write(diskout,*) '-----------------------------------------------------'
             end do
+
             close(unit=diskout)
+
          end if
       end do
 
@@ -694,6 +879,10 @@ smaller chunks (of size |nfrag|) to be handled by the slave processors
       var_free(chkpt_write)
       var_free(chkpt_nflights)
       var_free(estimator_factors)
+
+/*   Temporary formats for BGK output   */
+
+ 1    format(' ',I2,3x,I3,3(3x,F8.5))
 
       return
       end
