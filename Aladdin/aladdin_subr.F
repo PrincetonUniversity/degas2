@@ -1,157 +1,157 @@
-C#if 0
-CC This is just aladdin_1_0.f with the main program commented out
-C      PROGRAM ALADDIN
-CC                         *****************
-CC                         * A L A D D I N *
-CC                         *****************
-CC
-CC                  VERSION 1.0    30/04/1989
-CC
-CC                ALADDIN INTERACTIVE DATABASE PROGRAM
-CC
-CC     COPYRIGHT PRINCETON UNIVERSITY, PLASMA PHYSICS LABORATORY.
-CC     ---------
-CC
-CC     INTERACTIVE ACCESS TO ALADDIN DATABASE FILES; SEARCH FOR, DISPLAY,
-CC     EVALUATE, AND WRITE OUT ENTRY DATA.
-CC
-CC     REFERENCE,
-CC     " THE ALADDIN ATOMIC PHYSICS DATABASE SYSTEM ", RUSSELL A. HULSE,
-CC     ATOMIC PROCESSES IN PLASMAS, EDITORS, Y. KIM AND R. C. ELTON,
-CC     PAGES 63 - 72, CONFERENCE PROCEEDINGS 206,
-CC     AMERICAN INSTITUTE OF PHYSICS, NEW YORK, 1990, ISBN 0-88318-769-8.
-CC
-CC---------------------------------------------------------------------- --------
-CC
-CC
-CC              MODIFICATIONS MADE TO VERSION 1.0
-CC
-CC     REV: 01/10/89 BY J. J. SMITH IAEA ATOMIC AND MOLECULAR DATA UNIT
-CC
-CC       1. THE NUMBER OF COEFFICIENTS IN THE ARRAY CF, CONTAINED IN THE
-CC          VARIABLE NCF, IS SAVED BEFORE EACH CALL TO ALEV AND THE
-CC          VALUE OF NCF IS RESET ON RETURN FROM SUBROUTINE ALEV.
-CC          IT IS POSSIBLE FOR EVALUATION FUNCTIONS TO ADD COEFFICIENTS
-CC          TO THE ARRAY. THESE ADDITIONAL COEFFICIENTS MAY NOT BE
-CC          CORRECT FO A SUBSEQUNT CALL TO ALEV.
-CC
-CC-------------------------------------------------------------------------------
-CC
-C      INCLUDE 'ALPCOM.FOR'
-CC
-C      INCLUDE 'ALCOM.FOR'
-CC
-CC-------------------------------------------------------------------------------
-CC
-C      LOGICAL ALCIEQ
-C      EXTERNAL ALCIEQ
-CC
-CC-------------------------------------------------------------------------------
-CC
-CC     INITIALIZE
-CC
-C      LUTIN = 5
-C      LUTOUT = 6
-C      LUDF = 20
-C      DFNAME = '**NONE**'
-C      LUOF = 21
-C      OFNAME = '**NONE**'
-C      LUQF = 22
-C      QFNAME = '**NONE**'
-C      LUEF = 23
-C      EFNAME = '**NONE**'
-CC
-C      NHSL = 0
-C      NBASL = 0
-C      NBNSL = 0
-CC
-CC-------------------------------------------------------------------------------
-CC
-CC     PROMPT FOR INITIAL OPENING OF AN INPUT DATA FILE
-CC
-C   10 CALL ALF
-C      IF(.NOT.OK) GO TO 10
-CC
-CC     PROMPT FOR INITIAL OPENING OF A QUERY FILE
-CC
-C      CALL ALQF
-CC
-CC*******************************************************************************
-CC
-CC     COMMAND PROCESSING LOOP
-CC
-C  100 WRITE(LUTOUT, '(/''$ALADDIN>> '')' )
-C      READ(LUTIN, '(A)') CMND
-CC
-CC     USE IF...THEN SEQUENCE TO SELECT PROPER COMMAND SUBROUTINE TO CALL
-CC
-C      IF(INDEX(CMND,'?') .NE. 0) THEN
-C        CALL ALQMRK
-CC
-C      ELSE IF(ALCIEQ(CMND(1:2),'SL')
-C     &        .OR. ALCIEQ(CMND(1:1), 'L')) THEN
-C        CALL ALL
-CC
-C      ELSE IF(ALCIEQ(CMND(1:1), 'S')) THEN
-C        CALL ALS
-CC
-C      ELSE IF(ALCIEQ(CMND(1:1), 'G')) THEN
-C        CALL ALG
-CC
-C      ELSE IF(ALCIEQ(CMND(1:1), 'N')) THEN
-C        CALL ALN
-CC
-C      ELSE IF(ALCIEQ(CMND(1:1), 'D')) THEN
-C        CALL ALD
-CC
-C      ELSE IF(ALCIEQ(CMND(1:2), 'EV')) THEN
-CC
-CC     BEFORE ISSUING CALL, SAVE THE NUMBER OF COEFFICIENTS IN THE
-CC     ENTRY. AFTER THE CALL, RESET THE NUMBER OF COEFFICIENTS AS THE
-CC     EVALUATION SUBROUTINE MAY ADD COEFFICIENTS INTO THE CF OR DCF
-CC     ARRAYS. THESE  MAY NOT BE VALID FOR SBSEQUENT CALLS TO ALEV OR
-CC     WHEN CALLING THE EVALUATION SUBROUTINE FROM OTHER COMMANDS.
-CC
-C        NCFIN = NCF
-C        CALL ALEV
-C        NCF = NCFIN
-CC
-C      ELSE IF(ALCIEQ(CMND(1:2), 'EF')) THEN
-C        CALL ALEF
-CC
-C      ELSE IF(ALCIEQ(CMND(1:1), 'R')) THEN
-C        CALL ALR
-CC
-C      ELSE IF(ALCIEQ(CMND(1:1), 'F')) THEN
-C        CALL ALF
-CC
-C      ELSE IF(ALCIEQ(CMND(1:2), 'OF')) THEN
-C        CALL ALOF
-CC
-C      ELSE IF(ALCIEQ(CMND(1:2), 'WR')) THEN
-C        CALL ALWR
-CC
-C      ELSE IF(ALCIEQ(CMND(1:2), 'EN')
-C     &        .OR. ALCIEQ(CMND(1:2), 'EX')) THEN
-C        CALL ALEX
-CC
-C      ELSE IF(ALCIEQ(CMND(1:1), 'H')
-C     &        .OR. CMND .EQ. ' ') THEN
-C        CALL ALH
-CC
-C      ELSE IF(ALCIEQ(CMND(1:2), 'QF')) THEN
-C        CALL ALQF
-CC
-C      ELSE
-C        WRITE(LUTOUT,
-C     &  '(/'' UNKNOWN COMMAND (TYPE H FOR HELP)'')' )
-CC
-C      ENDIF
-CC
-C      GO TO 100
-CC
-C      END
-C#endif
+#if 0
+C This is just aladdin_1_0.f with the main program commented out
+      PROGRAM ALADDIN
+C                         *****************
+C                         * A L A D D I N *
+C                         *****************
+C
+C                  VERSION 1.0    30/04/1989
+C
+C                ALADDIN INTERACTIVE DATABASE PROGRAM
+C
+C     COPYRIGHT PRINCETON UNIVERSITY, PLASMA PHYSICS LABORATORY.
+C     ---------
+C
+C     INTERACTIVE ACCESS TO ALADDIN DATABASE FILES; SEARCH FOR, DISPLAY,
+C     EVALUATE, AND WRITE OUT ENTRY DATA.
+C
+C     REFERENCE,
+C     " THE ALADDIN ATOMIC PHYSICS DATABASE SYSTEM ", RUSSELL A. HULSE,
+C     ATOMIC PROCESSES IN PLASMAS, EDITORS, Y. KIM AND R. C. ELTON,
+C     PAGES 63 - 72, CONFERENCE PROCEEDINGS 206,
+C     AMERICAN INSTITUTE OF PHYSICS, NEW YORK, 1990, ISBN 0-88318-769-8.
+C
+C---------------------------------------------------------------------- --------
+C
+C
+C              MODIFICATIONS MADE TO VERSION 1.0
+C
+C     REV: 01/10/89 BY J. J. SMITH IAEA ATOMIC AND MOLECULAR DATA UNIT
+C
+C       1. THE NUMBER OF COEFFICIENTS IN THE ARRAY CF, CONTAINED IN THE
+C          VARIABLE NCF, IS SAVED BEFORE EACH CALL TO ALEV AND THE
+C          VALUE OF NCF IS RESET ON RETURN FROM SUBROUTINE ALEV.
+C          IT IS POSSIBLE FOR EVALUATION FUNCTIONS TO ADD COEFFICIENTS
+C          TO THE ARRAY. THESE ADDITIONAL COEFFICIENTS MAY NOT BE
+C          CORRECT FO A SUBSEQUNT CALL TO ALEV.
+C
+C-------------------------------------------------------------------------------
+C
+      INCLUDE 'ALPCOM.FOR'
+C
+      INCLUDE 'ALCOM.FOR'
+C
+C-------------------------------------------------------------------------------
+C
+      LOGICAL ALCIEQ
+      EXTERNAL ALCIEQ
+C
+C-------------------------------------------------------------------------------
+C
+C     INITIALIZE
+C
+      LUTIN = 5
+      LUTOUT = 6
+      LUDF = 20
+      DFNAME = '**NONE**'
+      LUOF = 21
+      OFNAME = '**NONE**'
+      LUQF = 22
+      QFNAME = '**NONE**'
+      LUEF = 23
+      EFNAME = '**NONE**'
+C
+      NHSL = 0
+      NBASL = 0
+      NBNSL = 0
+C
+C-------------------------------------------------------------------------------
+C
+C     PROMPT FOR INITIAL OPENING OF AN INPUT DATA FILE
+C
+   10 CALL ALF
+      IF(.NOT.OK) GO TO 10
+C
+C     PROMPT FOR INITIAL OPENING OF A QUERY FILE
+C
+      CALL ALQF
+C
+C*******************************************************************************
+C
+C     COMMAND PROCESSING LOOP
+C
+  100 WRITE(LUTOUT, '(/''$ALADDIN>> '')' )
+      READ(LUTIN, '(A)') CMND
+C
+C     USE IF...THEN SEQUENCE TO SELECT PROPER COMMAND SUBROUTINE TO CALL
+C
+      IF(INDEX(CMND,'?') .NE. 0) THEN
+        CALL ALQMRK
+C
+      ELSE IF(ALCIEQ(CMND(1:2),'SL')
+     &        .OR. ALCIEQ(CMND(1:1), 'L')) THEN
+        CALL ALL
+C
+      ELSE IF(ALCIEQ(CMND(1:1), 'S')) THEN
+        CALL ALS
+C
+      ELSE IF(ALCIEQ(CMND(1:1), 'G')) THEN
+        CALL ALG
+C
+      ELSE IF(ALCIEQ(CMND(1:1), 'N')) THEN
+        CALL ALN
+C
+      ELSE IF(ALCIEQ(CMND(1:1), 'D')) THEN
+        CALL ALD
+C
+      ELSE IF(ALCIEQ(CMND(1:2), 'EV')) THEN
+C
+C     BEFORE ISSUING CALL, SAVE THE NUMBER OF COEFFICIENTS IN THE
+C     ENTRY. AFTER THE CALL, RESET THE NUMBER OF COEFFICIENTS AS THE
+C     EVALUATION SUBROUTINE MAY ADD COEFFICIENTS INTO THE CF OR DCF
+C     ARRAYS. THESE  MAY NOT BE VALID FOR SBSEQUENT CALLS TO ALEV OR
+C     WHEN CALLING THE EVALUATION SUBROUTINE FROM OTHER COMMANDS.
+C
+        NCFIN = NCF
+        CALL ALEV
+        NCF = NCFIN
+C
+      ELSE IF(ALCIEQ(CMND(1:2), 'EF')) THEN
+        CALL ALEF
+C
+      ELSE IF(ALCIEQ(CMND(1:1), 'R')) THEN
+        CALL ALR
+C
+      ELSE IF(ALCIEQ(CMND(1:1), 'F')) THEN
+        CALL ALF
+C
+      ELSE IF(ALCIEQ(CMND(1:2), 'OF')) THEN
+        CALL ALOF
+C
+      ELSE IF(ALCIEQ(CMND(1:2), 'WR')) THEN
+        CALL ALWR
+C
+      ELSE IF(ALCIEQ(CMND(1:2), 'EN')
+     &        .OR. ALCIEQ(CMND(1:2), 'EX')) THEN
+        CALL ALEX
+C
+      ELSE IF(ALCIEQ(CMND(1:1), 'H')
+     &        .OR. CMND .EQ. ' ') THEN
+        CALL ALH
+C
+      ELSE IF(ALCIEQ(CMND(1:2), 'QF')) THEN
+        CALL ALQF
+C
+      ELSE
+        WRITE(LUTOUT,
+     &  '(/'' UNKNOWN COMMAND (TYPE H FOR HELP)'')' )
+C
+      ENDIF
+C
+      GO TO 100
+C
+      END
+#endif
 C
 C###############################################################################
 C
@@ -794,7 +794,7 @@ C
   160   CONTINUE
         WRITE(LUTOUT, '(1X,A)') ILINE(:IEND)
         GO TO 150
-      ELSE IF(IOS .GT. 0) THEN
+      ELSE IF(IOSTAT .GT. 0) THEN
         WRITE(LUTOUT, '(/'' ERROR READING DICTIONARY FILE'')' )
       ENDIF
 C
@@ -1345,8 +1345,7 @@ C
       DO 10 I=4,11
       XCON = PCF(I)*ALOGE
       XJAN = XJAN + XCON
-      ALOGE=ALOGE * ALOGE1
-   10 CONTINUE
+   10 ALOGE=ALOGE * ALOGE1
       PFIT = DEXP(XJAN)
   100 RETURN
 C
@@ -2442,7 +2441,7 @@ C
       DIMENSION PCF(2)
       CHARACTER*(*) KERMSG
 
-      DATA RY /1.358D+01/
+      DATA RY /1.358E+01/
 C
       N = PCF(1)
       AN = N
@@ -4314,62 +4313,49 @@ C
 C
 C-----   TRANSITIONS 1S - NP
 C
-      TFNM(1,1,2,2) = 0.4162
-      TFNM(1,1,3,2) = 7.91E-02
-      TFNM(1,1,4,2) = 2.899E-02
-      TFNM(1,1,5,2) = 1.394E-02
-      TFNM(1,1,6,2) = 7.8E-03
+      DATA TFNM(1,1,2,2),TFNM(1,1,3,2),TFNM(1,1,4,2),TFNM(1,1,5,2),
+     *   TFNM(1,1,6,2)
+     *    / 0.4162, 7.91E-02, 2.899E-02, 1.394E-02, 7.8E-03 /,
 C
 C-----   TRANSITIONS 2P - NS
 C
-      TFNM(2,2,3,1) = 1.359E-02
-      TFNM(2,2,4,1) = 3.045E-03
-      TFNM(2,2,5,1) = 1.213E-03
-      TFNM(2,2,6,1) = 6.180E-04
+     2   TFNM(2,2,3,1),TFNM(2,2,4,1),TFNM(2,2,5,1),TFNM(2,2,6,1)
+     *    / 1.359E-02, 3.045E-03, 1.213E-03, 6.180E-04 /,
 C
 C-----   TRANSITIONS 2S - NP
 C
-      TFNM(2,1,3,2) = 0.4349
-      TFNM(2,1,4,2) = 0.1028
-      TFNM(2,1,5,2) = 4.193E-02
-      TFNM(2,1,6,2) = 2.163E-02
+     3   TFNM(2,1,3,2),TFNM(2,1,4,2),TFNM(2,1,5,2),TFNM(2,1,6,2)
+     *    / 0.4349, 0.1028, 4.193E-02, 2.163E-02 /,
 C
 C-----   TRANSITIONS 2P - ND
 C
-      TFNM(2,2,3,3) = 0.6958
-      TFNM(2,2,4,3) = 0.1218
-      TFNM(2,2,5,3) = 4.437E-02
-      TFNM(2,2,6,3) = 2.163E-02
+     4   TFNM(2,2,3,3),TFNM(2,2,4,3),TFNM(2,2,5,3),TFNM(2,2,6,3)
+     *    / 0.6958, 0.1218, 4.437E-02, 2.163E-02 /,
 C
 C-----   TRANSITIONS 3S - NP
 C
-      TFNM(3,1,4,2) = 0.4847
-      TFNM(3,1,5,2) = 0.1210
-      TFNM(3,1,6,2) = 5.139E-02
+     5   TFNM(3,1,4,2),TFNM(3,1,5,2),TFNM(3,1,6,2)
+     *    / 0.4847, 0.1210, 5.139E-02 /,
 C
 C-----   TRANSITIONS 3P - NS
 C
-      TFNM(3,2,4,1) = 3.225E-02
-      TFNM(3,2,5,1) = 7.428E-03
-      TFNM(3,2,6,1) = 3.032E-03
+     6   TFNM(3,2,4,1),TFNM(3,2,5,1),TFNM(3,2,6,1)
+     *    / 3.225E-02, 7.428E-03, 3.032E-03 /,
 C
 C-----   TRANSITIONS 3P - ND
 C
-      TFNM(3,2,4,3) = 0.6183
-      TFNM(3,2,5,3) = 0.1392
-      TFNM(3,2,6,3) = 5.614E-02
+     7   TFNM(3,2,4,3),TFNM(3,2,5,3),TFNM(3,2,6,3)
+     *    / 0.6183, 0.1392, 5.614E-02 /,
 C
 C-----   TRANSITIONS 3D - NP
 C
-      TFNM(3,3,4,2) = 1.099E-02
-      TFNM(3,3,5,2) = 2.210E-03
-      TFNM(3,3,6,2) = 8.420E-04
+     8   TFNM(3,3,4,2),TFNM(3,3,5,2),TFNM(3,3,6,2)
+     *    / 1.099E-02, 2.210E-03, 8.420E-04 /,
 C
 C-----   TRANSITIONS 3D - NF
 C
-      TFNM(3,3,4,4) = 1.018
-      TFNM(3,3,5,4) = 0.1566
-      TFNM(3,3,6,4) = 5.389E-02
+     9   TFNM(3,3,4,4),TFNM(3,3,5,4),TFNM(3,3,6,4)
+     *    / 1.018, 0.1566, 5.389E-02 /
 C
 C
       IF ( (NIN .LE. 3) .AND. (LIN .LE. 2) .AND. (NFIN .LE. 6)
@@ -4461,39 +4447,31 @@ C
       DIMENSION ENL(4,4,2), EN(7)
       DATA (((ENL(I,J,K),I=1,4),J=1,4),K=1,2) /32*0.0/
 C
-      ENL(1,1,1) = 24.588
+      DATA ENL(1,1,1)
+     *    / 24.588 /,
 C
-C---- N = 2 EXCITED STATES
+C----   N=2 EXCITED STATES
 C
-      ENL(2,1,1) = 3.973
-      ENL(2,1,2) = 4.769
-      ENL(2,2,1) = 3.371
-      ENL(2,2,2) = 3.625
+     1  ENL(2,1,1),ENL(2,1,2),ENL(2,2,1),ENL(2,2,2)
+     *    / 3.973, 4.769, 3.371, 3.625 /,
 C
-C---- N = 3 EXCITED STATES
+C----   N=3 EXCITED STATES
 C
-      ENL(3,1,1) = 1.699
-      ENL(3,1,2) = 1.871
-      ENL(3,2,1) = 1.502
-      ENL(3,2,2) = 1.582
-      ENL(3,3,1) = 1.515
-      ENL(3,3,2) = 1.515
+     2   ENL(3,1,1),ENL(3,1,2),ENL(3,2,1),ENL(3,2,2),ENL(3,3,1),
+     *   ENL(3,3,2)
+     *    / 1.699, 1.871, 1.502, 1.582, 1.515, 1.515 /,
 C
-C---- N = 4 EXCITED STATES
+C----   N=4 EXCITED STATES
 C
-      ENL(4,1,1) = 0.9155
-      ENL(4,1,2) = 0.9951
-      ENL(4,2,1) = 0.8470
-      ENL(4,2,2) = 0.8812
-      ENL(4,3,1) = 0.8529
-      ENL(4,3,2) = 0.8530
-      ENL(4,4,1) = 0.8520
-      ENL(4,4,2) = 0.8520
+     3   ENL(4,1,1),ENL(4,1,2),ENL(4,2,1),ENL(4,2,2),ENL(4,3,1),
+     *   ENL(4,3,2),ENL(4,4,1),ENL(4,4,2)
+     *    / 0.9155, 0.9951, 0.8470, 0.8812, 0.8529, 0.8530, 0.8520,
+     *      0.8520 /
 C
 C-----   IONIZATION ENERGIES SUMMED OVER ANGULAR MOMENTUM AND
 C-----   TOTAL SPIN
 C
-      DATA (EN(K),K=1,2) /2*0.0/
+      DATA (EN(K),K=1,7) /7*0.0/
       DATA EN(3),EN(4),EN(5),EN(6),EN(7)
      *    / 1.609 , 0.8811, 0.52, 0.37, 0.29/
 C
@@ -4562,39 +4540,31 @@ C
 C
 C----   N=1 STATE
 C
-      ENL(1,1,1) = 24.588
+      DATA ENL(1,1,1)
+     *    / 24.588 /,
 C
 C----   N=2 EXCITED STATES
 C
-        ENL(2,1,1) = 20.614
-        ENL(2,1,2) =  19.818
-        ENL(2,2,1) =  21.217
-        ENL(2,2,2) =  20.963
+     1   ENL(2,1,1),ENL(2,1,2),ENL(2,2,1),ENL(2,2,2)
+     *    / 20.614, 19.818, 21.217, 20.963 /,
 C
 C----   N=3 EXCITED STATES
 C
-          ENL(3,1,1) = 22.919
-          ENL(3,1,2) =  22.717
-          ENL(3,2,1) =  23.086
-          ENL(3,2,2) =  23.006
-          ENL(3,3,1) =  23.073
-           ENL(3,3,2) =  23.072
+     2   ENL(3,1,1),ENL(3,1,2),ENL(3,2,1),ENL(3,2,2),ENL(3,3,1),
+     *   ENL(3,3,2)
+     *    / 22.919, 22.717, 23.086, 23.006, 23.073, 23.072 /,
 C
 C----   N=4 EXCITED STATES
 C
-             ENL(4,1,1) = 23.672
-             ENL(4,1,2) =  23.529
-             ENL(4,2,1) =  23.741
-             ENL(4,2,2) =  23.706
-             ENL(4,3,1) =  23.735
-              ENL(4,3,2) =  23.735
-              ENL(4,4,1) =  23.736
-              ENL(4,4,2) =  23.736
+     3   ENL(4,1,1),ENL(4,1,2),ENL(4,2,1),ENL(4,2,2),ENL(4,3,1),
+     *   ENL(4,3,2),ENL(4,4,1),ENL(4,4,2)
+     *    / 23.672, 23.529, 23.741, 23.706, 23.735, 23.735, 23.736,
+     *     23.736 /
 C
 C-----   EXCITATION ENERGIES SUMMED OVER ANGULAR MOMENTUM AND
 C-----   TOTAL SPIN
 C
-      DATA (EN(K),K=1,2) /2*0.0/
+      DATA (EN(K),K=1,7) /7*0.0/
       DATA EN(3),EN(4),EN(5),EN(6),EN(7)
      *    / 22.9799 , 23.699, 24.07, 24.30, 24.71/
 C
@@ -4664,49 +4634,41 @@ C
 C
 C-----   SINGLET TRANSITIONS 1S1S - 1SNP
 C
-      TFNM(1,1,2,2,1) = 0.276
-      TFNM(1,1,3,2,1) = 7.34E-02
-      TFNM(1,1,4,2,1) = 3.02E-02
-      TFNM(1,1,5,2,1) = 1.53E-02
+      DATA TFNM(1,1,2,2,1),TFNM(1,1,3,2,1),TFNM(1,1,4,2,1)
+     *     , TFNM(1,1,5,2,1)
+     *    / 0.276, 7.34E-02, 3.02E-02, 1.53E-02 /,
 C
 C-----   SINGLET TRANSITIONS 1S2S - 1SNP
 C
-      TFNM(2,1,2,2,1) = 0.376
-      TFNM(2,1,3,2,1) = 0.151
-      TFNM(2,1,4,2,1) = 0.0507
-      TFNM(2,1,5,2,1) = 0.0221
+     1   TFNM(2,1,2,2,1),TFNM(2,1,3,2,1),TFNM(2,1,4,2,1),TFNM(2,1,5,2,1)
+     *    / 0.376, 0.151, 0.0507, 0.0221 /,
 C
 C-----  TRIPLET TRANSITIONS 1S2S - 1S2P  FINE STRUCTURE - IN ARRAY T2S2P
 C
 C-----   TRIPLET TRANSITIONS 1S2S - 1SNP
 C
-      TFNM(2,1,3,2,2) = 0.0645
-      TFNM(2,1,4,2,2) = 0.0231
-      TFNM(2,1,5,2,2) = 0.0114
+     2   TFNM(2,1,3,2,2),TFNM(2,1,4,2,2),TFNM(2,1,5,2,2)
+     *    / 0.0645, 0.0231, 0.0114 /,
 C
 C-----   SINGLET TRANSITIONS 1S2P - 1SNS
 C
-      TFNM(2,2,3,1,1) = 0.0480
-      TFNM(2,2,4,1,1) = 0.834E-02
-      TFNM(2,2,5,1,1) = 0.308E-02
+     3   TFNM(2,2,3,1,1),TFNM(2,2,4,1,1),TFNM(2,2,5,1,1)
+     *    / 0.0480, 0.834E-02, 0.308E-02 /,
 C
 C-----   SINGLET TRANSITIONS 1S2P - 1SND
 C
-      TFNM(2,2,3,3,1) = 0.711
-      TFNM(2,2,4,3,1) = 0.122
-      TFNM(2,2,5,3,1) = 0.0436
+     4   TFNM(2,2,3,3,1),TFNM(2,2,4,3,1),TFNM(2,2,5,3,1)
+     *    / 0.711, 0.122, 0.0436 /,
 C
 C-----   TRIPLET TRANSITIONS 1S2P - 1SNS
 C
-      TFNM(2,2,3,1,2) = 0.0692
-      TFNM(2,2,4,1,2) = 0.0118
-      TFNM(2,2,5,1,2) = 3.65E-02
+     5   TFNM(2,2,3,1,2),TFNM(2,2,4,1,2),TFNM(2,2,5,1,2)
+     *    / 0.0692, 0.0118, 3.65E-02 /,
 C
 C-----   TRANSITIONS 1S2PD - 1SND
 C
-      TFNM(2,2,3,3,2) = 0.609
-      TFNM(2,2,4,3,2) = 0.125
-      TFNM(2,2,5,3,2) = 0.0474
+     6   TFNM(2,2,3,3,2),TFNM(2,2,4,3,2),TFNM(2,2,5,3,2)
+     *    / 0.609, 0.125, 0.0474 /
 C
 C-----   TRIPLET FINE STRUCTURE TRANSITIONS  1S2S-1S2P
 C-----   THE FIRST VALUE IS AN AVERAGE OVER THE FINE STRUCTURE LEVELS
@@ -4781,13 +4743,11 @@ C------------------------------------------------------------------------
 C
       DOUBLE PRECISION PE, PCF, PXS
       DOUBLE PRECISION CSTR, RYD, KSQ, X, ALOG
-      DOUBLE PRECISION ZERO
 C
       DIMENSION PCF(12)
       CHARACTER*(*) KERMSG
 C
       DATA RYD/1.36D+01/
-      DATA ZERO/0.0D0/
 C
       ETH = PCF(1)
       IF(PE .GE. ETH) THEN
@@ -4839,13 +4799,11 @@ C------------------------------------------------------------------------
 C
       DOUBLE PRECISION PE, PCF, PXS
       DOUBLE PRECISION CSTR, RYD, KSQ, X, ALOG, U , UCONT, ETH
-      DOUBLE PRECISION ZERO
 C
       DIMENSION PCF(7)
       CHARACTER*(*) KERMSG
 C
       DATA RYD/13.6D0/
-      DATA ZERO/0.0D0/
 C
       ETH = PCF(1)
       IF(PE .GE. ETH) THEN
@@ -5709,17 +5667,10 @@ C------------------------------------------------------------------------
 C
       DOUBLE PRECISION PE, PCF, PXS
       DOUBLE PRECISION N, C1
-      DOUBLE PRECISION Q
       DIMENSION PCF(10)
       CHARACTER*(*) KERMSG
       DATA DEXPR/7.00D+02/
       DATA ZERO/0.00D+00/
-
-c <karney@pppl.gov> 1998/04/16 11:20 EDT
-c This assignment for Q is a guess.  It used but wasn't assigned in the
-c original code
-      DATA Q/1.0D0/
-
       N = PCF(5)
 C
 C---  DETERMINE THE PROJECTILE ENERGY - IN SCALED UNITS
