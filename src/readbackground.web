@@ -2,6 +2,9 @@
 \Title{readbackground}
 
 % $Log$
+% Revision 1.25.4.1  2000/01/22 00:40:21  kanzlr
+% Addition of allocation for background pressure.
+%
 % Revision 1.25  1999/07/22 17:56:17  dstotler
 % Use update flag to denote old or new run rather than locally doing a
 % check on source_segment_ptr (this didn't work well in DEBUG=no mode).
@@ -219,7 +222,6 @@ of the file name (x.d is degas and x.u for uedge) */
       var_alloc(background_n)
       var_alloc(background_v)
       var_alloc(background_temp)
-      var_alloc(background_pres)
 
       if (degas) then
          call read_degas_background(degasfilename)
