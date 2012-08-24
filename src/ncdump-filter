@@ -1,5 +1,0 @@
-#! /bin/sh
-IFILE=/tmp/ncdump.$$.nc
-cat > $IFILE
-ncdump $IFILE
-rm -rf $IFILE

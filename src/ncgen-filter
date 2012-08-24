@@ -1,7 +1,0 @@
-#! /bin/sh
-IFILE=/tmp/ncgen.$$.cdl
-OFILE=/tmp/ncgen.$$.nc
-cat > $IFILE
-ncgen -o $OFILE $IFILE
-cat $OFILE
-rm -rf $IFILE $OFILE
