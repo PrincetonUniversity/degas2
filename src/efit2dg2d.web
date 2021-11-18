@@ -135,6 +135,7 @@ form='formatted',iostat=open_stat);
 @m NSTX_ENDD 0
 @m NSTX_GPI  1
 @m CMOD_GPI  2
+@m DIIID_MICER 3
 
 @m APP CMOD_GPI
 
@@ -285,6 +286,11 @@ form='formatted',iostat=open_stat);
       rbox_max = const(1.560)
       zbox_min = const(-0.25)
       zbox_max = const(0.54)
+@#elseif (APP == DIIID_MICER)
+      rbox_min=const(2.0)
+      rbox_max = const(2.35)
+      zbox_min = const(-0.4)
+      zbox_max = const(0.4)
 @#endif
       nrbox = 35
       nzbox = 75
