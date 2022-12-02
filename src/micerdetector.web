@@ -1,0 +1,153 @@
+% $Id$
+\Title{micerdetector}
+
+@* Detector definition for MICER, adopted from btopdetector and including spectra.
+
+\ID{$Id$}
+
+@m FILE 'micerdetector.web'
+
+@I macros.hweb
+@I sysdep.hweb
+@I geomint.hweb
+@I zone.hweb
+@I detector.hweb
+@I geometry2d.hweb
+@I string.hweb
+
+@ The unnamed module.
+
+@a
+      @<Functions and Subroutines@>
+
+@ Main-ion CER detector views for simulation of spectrally resolved D-alpha measurements on DIII-D
+
+@m micer_views 16  // To be used as a local dimension.
+
+@<Functions...@>=
+      subroutine detector_setup
+
+      implicit_none_f77
+      de_common
+      zn_common
+      implicit_none_f90
+
+      @<Memory allocation interface@>
+
+      detector_total_views=micer_views
+      var_alloc(de_view_points)
+      var_alloc(de_view_algorithm)
+      var_alloc(de_view_halfwidth)
+
+      call initialize_zone_frags
+
+      de_grps=0
+      de_view_size=0
+      var_alloc(de_view_tab)
+
+      call detector_setup_a
+
+      return
+      end
+
+@ Extension of the above subroutine.  Statements actually making
+assignments to the detector pointer arrays (|de_zone_frags|
+specfically) need to be separated from their allocation above
+so that their array indexing gets handled correctly.
+
+@<Functions...@>=
+      subroutine detector_setup_a
+
+      define_varp(zone_frags,FLOAT,zone_ind)
+
+      implicit_none_f77
+      de_common
+      zn_common
+      implicit_none_f90
+
+      integer view,num,var,tab_index,spacing,i,zone
+      integer grp_views[micer_views]
+      real var_min,var_max,mult
+      real micer_x_s[micer_views]
+      real micer_y_s[micer_views]
+      real micer_z_s[micer_views]
+      real micer_x_e[micer_views]
+      real micer_y_e[micer_views]
+      real micer_z_e[micer_views]
+      data (micer_x_s(i),i=1,micer_views)
+     . /dconst(-0.773),dconst(-0.778),dconst(-0.784),dconst(-0.791),dconst(-0.797),dconst(-0.803),
+     .  dconst(-0.810),dconst(-0.817),dconst(-0.825),dconst(-0.833),dconst(-0.842),dconst(-0.852),
+     .  dconst(-0.861),dconst(-0.872),dconst(-0.885),dconst(-0.899)/
+
+      data (micer_y_s(i),i=1,micer_views)
+     . /dconst(2.219),dconst(2.217),dconst(2.215),dconst(2.213),dconst(2.211),dconst(2.208),
+     .  dconst(2.206),dconst(2.203),dconst(2.201),dconst(2.197),dconst(2.194),dconst(2.190),
+     .  dconst(2.186),dconst(2.182),dconst(2.177),dconst(2.171)/
+
+      data (micer_z_s(i),i=1,micer_views)
+     . /dconst(0.002),dconst(0.001),dconst(0.001),dconst(0.001),dconst(0.001),dconst(0.001),
+     .  dconst(0.001),dconst(0.001),dconst(0.001),dconst(0.000),dconst(0.000),dconst(0.000),
+     .  dconst(0.000),dconst(-0.000),dconst(-0.000),dconst(-0.000)/
+
+      data (micer_x_e(i),i=1,micer_views)
+     . /dconst(-2.090),dconst(-2.070),dconst(-2.047),dconst(-2.024),dconst(-2.001),dconst(-1.977),
+     . dconst(-1.953),dconst(-1.928),dconst(-1.903),dconst(-1.874),dconst(-1.845),dconst(-1.814),
+     . dconst(-1.786),dconst(-1.753),dconst(-1.719),dconst(-1.681)/
+
+      data (micer_y_e(i),i=1,micer_views)
+     . /dconst(1.074),dconst(1.112),dconst(1.154),dconst(1.194),dconst(1.232),dconst(1.270),
+     . dconst(1.307),dconst(1.344),dconst(1.379),dconst(1.417),dconst(1.456),dconst(1.493),
+     . dconst(1.528),dconst(1.565),dconst(1.602),dconst(1.642)/
+
+      data (micer_z_e(i),i=1,micer_views)
+     . /dconst(-0.035),dconst(-0.034),dconst(-0.033),dconst(-0.031),dconst(-0.031),dconst(-0.030),
+     . dconst(-0.029),dconst(-0.029),dconst(-0.027),dconst(-0.026),dconst(-0.025),dconst(-0.023),
+     . dconst(-0.021),dconst(-0.021),dconst(-0.019),dconst(-0.018)/
+
+      declare_varp(zone_frags)
+
+      @<Memory allocation interface@>
+
+      var_alloc(zone_frags)
+
+      write(stdout,*) '* Setting up MICER geometry for fscope and spec'
+      if (detector_total_views > 0) then
+         do view=1,micer_views
+            de_view_algorithm[view]=de_algorithm_uniform
+            de_view_halfwidth[view]=half*PI/const(1.8,2)  // roughly distance between chords
+            vc_set(de_view_points[view][de_view_start],micer_x_s(view),micer_y_s(view),micer_z_s(view))
+            vc_set(de_view_points[view][de_view_end],micer_x_e(view),micer_y_e(view),micer_z_e(view))
+            call detector_view_setup(vc_args(de_view_points[view][de_view_start]),de_view_halfwidth[view],de_view_algorithm[view],zone_frags)
+            call add_zone_frags(view,zone_frags)
+         end do
+
+         var_free(zone_frags)
+
+         num=micer_views
+         var=de_var_unknown
+         tab_index=zero
+         var_min=zero
+         var_max=zero
+         mult=zero
+         spacing=de_spacing_unknown
+         do i=1,num
+            grp_views[i]=i
+         end do
+         call de_grp_init('MICER fscope',num,var,tab_index,var_min,var_max,
+     $        mult,spacing,grp_views)
+
+         var=de_var_wavelength
+         tab_index=200
+         var_min=const(6556.)
+         var_max=const(6566.)
+         mult=const(1.,-10)
+         spacing = de_spacing_linear
+         call de_grp_init('Halpha spectrum',num,var,tab_index,var_min,var_max,
+     $        mult,spacing,grp_views)
+
+      end if
+
+      return
+      end
+
+@* INDEX.
