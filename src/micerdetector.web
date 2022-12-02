@@ -1,20 +1,7 @@
 % $Id$
-\Title{btopdetector}
+\Title{micerdetector}
 
-@* Example user-defined detector setup for geometry definition programs. 
-This routine can be called by both {\tt readgeometry} and 
-{\tt definegeometry2d}. The easiest way to compile it into one of these
-codes is to copy it to a file named {\tt usr2ddetector.web}:
-\begin{verbatim}
-cd $HOME/degas2/src
-cp btopdetector.web usr2ddetector.web
-touch usr2ddetector.web
-cd ../SUN
-gmake definegeometry2d
-\end{verbatim}
-
-For additional details, see the documentation at the top of 
-{\tt definegeometry2d}.
+@* Detector definition for MICER, adopted from btopdetector and including spectra.
 
 \ID{$Id$}
 
